@@ -323,14 +323,14 @@ tr:active { background: #fafbfc; }
 
 <script>
 // ==================== 數據模型 ====================
-const HOTELS = ['名匯','倫敦人','威尼斯人','巴黎人','御園','明星匯','映星匯','君悅','萬豪','銀河','摩伯斯','萊佛士'];
+const HOTELS = ['名匯','御園','倫敦人','威尼斯人','巴黎人','暄居','摩珀斯','巨星匯','映星匯','明星匯','君悅嘉賓軒','君悅'];
 const DEFAULT_AGENTS = ['直客','攜程','美團','飛豬','Booking','Agoda','Klook','KKday'];
 const STORAGE_KEY = 'macau_hotel_bookings';
 const SETTINGS_KEY = 'macau_hotel_settings';
 const TG_KEY = 'macau_hotel_telegram';
 const ROOM_PRICES_KEY = 'macau_hotel_room_prices';
 
-// 房型成本資料庫（HKD/晚）— 平日/週末/特殊日
+// 房型成本資料庫（HKD/晚）— 平日/週末/特殊日（2026 最新）
 const ROOM_DB = {
   '名匯': [
     { name:'查爾斯套房(大床)', code:'LSK', weekday:1000, weekend:1300, holiday:1600 },
@@ -349,40 +349,46 @@ const ROOM_DB = {
   '威尼斯人': [
     { name:'皇室套房(大床)', code:'KC', weekday:1000, weekend:1300, holiday:1600 },
     { name:'貝麗套房(雙床)', code:'TC', weekday:1000, weekend:1300, holiday:1600 },
-    { name:'維雅套房', code:'KS/TS', weekday:2000, weekend:2300, holiday:2600 }
+    { name:'維雅套房(大床/雙床)', code:'KS/TS', weekday:2000, weekend:2300, holiday:2600 }
   ],
   '巴黎人': [
-    { name:'里昂套房', code:'KS/TS', weekday:1000, weekend:1300, holiday:1600 },
-    { name:'香檳套房', code:'KPS/TPS', weekday:1000, weekend:1300, holiday:1600 }
+    { name:'里昂套房(大床/雙床)', code:'KS/TS', weekday:1000, weekend:1300, holiday:1600 },
+    { name:'香檳套房(大床/雙床)', code:'KPS/TPS', weekday:1000, weekend:1300, holiday:1600 }
   ],
-  '明星匯': [
-    { name:'明星客房(大床)', code:'KC', weekday:1000, weekend:1300, holiday:1600 },
-    { name:'明星客房(雙床)', code:'TC', weekday:1000, weekend:1300, holiday:1600 },
-    { name:'明星套房', code:'KS', weekday:2000, weekend:2300, holiday:2600 }
+  // ===== 新濠天地系列 (City of Dreams) =====
+  '暄居': [
+    { name:'尊尚大床客房', code:'NPK', weekday:1200, weekend:1500, holiday:1800 },
+    { name:'尚尚雙床客房', code:'NPQ', weekday:1200, weekend:1500, holiday:1800 },
+    { name:'尊尚客房', code:'NPS', weekday:3000, weekend:3300, holiday:3600 }
+  ],
+  '摩珀斯': [
+    { name:'豪華大床客房', code:'MPK', weekday:1200, weekend:1500, holiday:1800 },
+    { name:'豪華雙床客房', code:'MPT', weekday:1200, weekend:1500, holiday:1800 },
+    { name:'摩華客房', code:'MES', weekday:3000, weekend:3300, holiday:3600 }
+  ],
+  '巨星匯': [
+    { name:'帝景客房', code:'SDK', weekday:900, weekend:1200, holiday:1500 },
+    { name:'最愛雙床客房', code:'SDT', weekday:900, weekend:1200, holiday:1500 },
+    { name:'行政客房', code:'SPS', weekday:3000, weekend:3300, holiday:3600 }
   ],
   '映星匯': [
-    { name:'映星客房', code:'KC', weekday:1000, weekend:1300, holiday:1600 },
-    { name:'映星套房', code:'KS', weekday:2000, weekend:2300, holiday:2600 }
+    { name:'大床客房', code:'EDK', weekday:900, weekend:1200, holiday:1500 },
+    { name:'雙床客房', code:'EDT', weekday:900, weekend:1200, holiday:1500 },
+    { name:'華麗客房', code:'EG1', weekday:1500, weekend:1800, holiday:2100 }
+  ],
+  '明星匯': [
+    { name:'經典大床客房', code:'CDK', weekday:500, weekend:800, holiday:1100 },
+    { name:'經典雙床客房', code:'CDT', weekday:500, weekend:800, holiday:1100 }
+  ],
+  '君悅嘉賓軒': [
+    { name:'豪華大床客房', code:'DLXK', weekday:690, weekend:990, holiday:1290 },
+    { name:'豪華雙床客房', code:'DLXT', weekday:690, weekend:990, holiday:1290 }
   ],
   '君悅': [
-    { name:'君悅客房', code:'KC', weekday:1200, weekend:1500, holiday:1800 },
-    { name:'君悅套房', code:'KS', weekday:2200, weekend:2500, holiday:2800 }
-  ],
-  '萬豪': [
-    { name:'豪華客房', code:'DC', weekday:1200, weekend:1500, holiday:1800 },
-    { name:'豪華套房', code:'DS', weekday:2200, weekend:2500, holiday:2800 }
-  ],
-  '銀河': [
-    { name:'銀河客房', code:'GC', weekday:1200, weekend:1500, holiday:1800 },
-    { name:'銀河套房', code:'GS', weekday:2200, weekend:2500, holiday:2800 }
-  ],
-  '摩伯斯': [
-    { name:'摩伯斯客房', code:'MC', weekday:1500, weekend:1800, holiday:2200 },
-    { name:'摩伯斯套房', code:'MS', weekday:3000, weekend:3500, holiday:4200 }
-  ],
-  '萊佛士': [
-    { name:'萊佛士客房', code:'RC', weekday:1500, weekend:1800, holiday:2200 },
-    { name:'萊佛士套房', code:'RS', weekday:3000, weekend:3500, holiday:4200 }
+    { name:'客房(大床)', code:'KING', weekday:500, weekend:800, holiday:1100 },
+    { name:'客房(雙床)', code:'TWIN', weekday:500, weekend:800, holiday:1100 },
+    { name:'君悅客房', code:'GRSK', weekday:800, weekend:1100, holiday:1400 },
+    { name:'君悅套房', code:'GRST', weekday:800, weekend:1100, holiday:1400 }
   ]
 };
 
