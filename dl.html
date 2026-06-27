@@ -254,9 +254,7 @@ tr:active { background: #fafbfc; }
     <div class="card">
       <div class="card-header"><h2>🏠 房型成本表（點選查看）</h2></div>
       <div class="form-group">
-        <select class="form-select" id="rpHotel" onchange="renderRoomPrices()">
-          ${HOTELS.map(h=>`<option value="${h}">${h}</option>`).join('')}
-        </select>
+        <select class="form-select" id="rpHotel" onchange="renderRoomPrices()"></select>
       </div>
       <div class="table-wrap" style="margin:0;">
         <table style="min-width:400px;">
@@ -1006,7 +1004,12 @@ function saveRoomPrices(data) {
   localStorage.setItem(ROOM_PRICES_KEY, JSON.stringify(data));
 }
 function renderRoomPrices() {
-  const hotel = document.getElementById('rpHotel')?.value || HOTELS[0];
+  // 動態生成酒店下拉選單
+  const sel = document.getElementById('rpHotel');
+  if (sel && sel.options.length === 0) {
+    sel.innerHTML = HOTELS.map(h => `<option value="${h}">${h}</option>`).join('');
+  }
+  const hotel = sel?.value || HOTELS[0];
   const rooms = ROOM_DB[hotel] || [];
   const tbody = document.getElementById('roomPriceTable');
   if (!tbody) return;
@@ -1017,6 +1020,15 @@ function renderRoomPrices() {
   tbody.innerHTML = rooms.map(r =>
     `<tr><td><strong>${r.name}</strong></td><td>${r.code}</td><td>${r.weekday.toLocaleString()}</td><td>${r.weekend.toLocaleString()}</td><td>${r.holiday.toLocaleString()}</td></tr>`
   ).join('');
+}
+
+// 清理已不用的函數
+function getRoomPrices() {
+  try { return JSON.parse(localStorage.getItem(ROOM_PRICES_KEY) || '{}'); }
+  catch(e) { return {}; }
+}
+function saveRoomPrices(data) {
+  localStorage.setItem(ROOM_PRICES_KEY, JSON.stringify(data));
 }
 
 // ==================== 匯出匯入 ====================
