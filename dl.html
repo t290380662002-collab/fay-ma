@@ -224,7 +224,7 @@ tr:active { background: #fafbfc; }
           <thead>
             <tr>
               <th>酒店</th><th>房型</th><th>代理</th><th>入住</th><th>退房</th><th>晚</th>
-              <th>成本(HKD)</th><th>匯率</th><th>售價(RMB)</th><th>利潤(RMB)</th><th></th>
+              <th>成本(HKD)</th><th>匯率</th><th>售價(TWD)</th><th>利潤(TWD)</th><th></th>
             </tr>
           </thead>
           <tbody id="bookingTableBody"></tbody>
@@ -244,10 +244,10 @@ tr:active { background: #fafbfc; }
       <div class="card-header"><h2>⚙️ 基本設定</h2></div>
       <div class="setting-row">
         <div>
-          <div class="setting-label">預設匯率 (HKD→RMB)</div>
+          <div class="setting-label">預設匯率 (HKD→TWD)</div>
           <div class="setting-desc">新增預訂時自動帶入的匯率</div>
         </div>
-        <input type="number" class="form-input" id="defaultRate" step="0.001" min="0.5" max="1.5" value="0.910" style="width:90px;text-align:center;" onchange="saveSettings()">
+        <input type="number" class="form-input" id="defaultRate" step="0.001" min="3.5" max="4.5" value="4.1" style="width:90px;text-align:center;" onchange="saveSettings()">
       </div>
     </div>
 
@@ -258,6 +258,22 @@ tr:active { background: #fafbfc; }
         <button class="btn btn-primary btn-sm" onclick="addAgent()">＋ 新增</button>
       </div>
       <div class="tags-wrap" id="agentTags"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>🤖 Telegram Bot 設定</h2></div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Bot Token</div>
+          <div class="setting-desc">輸入 Telegram Bot Token 以啟用通知</div>
+        </div>
+        <input type="password" class="form-input" id="tgToken" placeholder="123456:ABC-DEF..." style="width:160px;text-align:center;" onchange="saveTgSettings()">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-success btn-sm" onclick="testTgBot()">🔍 測試連線</button>
+        <button class="btn btn-danger btn-sm" onclick="clearTgToken()">🗑 清除</button>
+      </div>
+      <div id="tgStatus" style="margin-top:8px;font-size:12px;"></div>
     </div>
 
     <div class="card">
@@ -295,6 +311,7 @@ const HOTELS = ['名匯','倫敦人','威尼斯人','巴黎人','御園','明星
 const DEFAULT_AGENTS = ['直客','攜程','美團','飛豬','Booking','Agoda','Klook','KKday'];
 const STORAGE_KEY = 'macau_hotel_bookings';
 const SETTINGS_KEY = 'macau_hotel_settings';
+const TG_KEY = 'macau_hotel_telegram';
 
 function getBookings() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
@@ -313,6 +330,41 @@ function getSettings() {
 }
 function saveSettingsObj(obj) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj));
+}
+function getTgSettings() {
+  try { return JSON.parse(localStorage.getItem(TG_KEY) || '{}'); }
+  catch(e) { return {}; }
+}
+function saveTgSettings() {
+  const token = document.getElementById('tgToken').value.trim();
+  localStorage.setItem(TG_KEY, JSON.stringify({ token }));
+  showToast('🤖 Telegram 設定已儲存', 'success');
+}
+function testTgBot() {
+  const token = document.getElementById('tgToken').value.trim();
+  if (!token) { showToast('請先輸入 Bot Token', 'error'); return; }
+  fetch(`https://api.telegram.org/bot${token}/getMe`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        document.getElementById('tgStatus').innerHTML = `✅ 連線成功！Bot：<strong>${d.result.username}</strong>`;
+        showToast('✅ Telegram Bot 連線成功', 'success');
+      } else {
+        document.getElementById('tgStatus').innerHTML = `❌ 連線失敗：${d.description}`;
+        showToast('❌ Token 無效', 'error');
+      }
+    })
+    .catch(() => {
+      document.getElementById('tgStatus').innerHTML = '❌ 網路錯誤，請檢查連線';
+      showToast('❌ 網路錯誤', 'error');
+    });
+}
+function clearTgToken() {
+  if (!confirm('確定要清除 Telegram Bot Token 嗎？')) return;
+  localStorage.removeItem(TG_KEY);
+  document.getElementById('tgToken').value = '';
+  document.getElementById('tgStatus').innerHTML = '';
+  showToast('🗑 Token 已清除', 'error');
 }
 
 // ==================== Toast ====================
@@ -373,9 +425,9 @@ function openAddModal() {
     <div class="form-row-3">
       <div class="form-group"><label class="form-label">成本 HKD</label><input type="number" class="form-input" id="mCost" step="0.01" min="0" placeholder="0" onchange="calcProfit()"></div>
       <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${s.defaultRate}" onchange="calcProfit()"></div>
-      <div class="form-group"><label class="form-label">售價 RMB</label><input type="number" class="form-input" id="mPrice" step="0.01" min="0" placeholder="0" onchange="calcProfit()"></div>
+      <div class="form-group"><label class="form-label">售價 TWD</label><input type="number" class="form-input" id="mPrice" step="0.01" min="0" placeholder="0" onchange="calcProfit()"></div>
     </div>
-    <div class="form-group"><label class="form-label">利潤 RMB <span class="auto-badge">自動</span></label>
+    <div class="form-group"><label class="form-label">利潤 TWD <span class="auto-badge">自動</span></label>
       <input class="form-input" id="mProfit" readonly style="background:#f9fafb;">
     </div>
     <div class="calc-result" id="mCalcHint"></div>
@@ -409,9 +461,9 @@ function openEditModal(booking) {
     <div class="form-row-3">
       <div class="form-group"><label class="form-label">成本 HKD</label><input type="number" class="form-input" id="mCost" step="0.01" value="${booking.cost}" onchange="calcProfit()"></div>
       <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${booking.rate}" onchange="calcProfit()"></div>
-      <div class="form-group"><label class="form-label">售價 RMB</label><input type="number" class="form-input" id="mPrice" step="0.01" value="${booking.price}" onchange="calcProfit()"></div>
+      <div class="form-group"><label class="form-label">售價 TWD</label><input type="number" class="form-input" id="mPrice" step="0.01" value="${booking.price}" onchange="calcProfit()"></div>
     </div>
-    <div class="form-group"><label class="form-label">利潤 RMB <span class="auto-badge">自動</span></label>
+    <div class="form-group"><label class="form-label">利潤 TWD <span class="auto-badge">自動</span></label>
       <input class="form-input" id="mProfit" value="${booking.profit.toFixed(2)}" readonly style="background:#f9fafb;">
     </div>
     <div class="calc-result" id="mCalcHint"></div>
@@ -443,7 +495,7 @@ function calcProfit() {
   if (el) el.value = profit.toFixed(2);
   const hint = document.getElementById('mCalcHint');
   if (hint && cost > 0 && price > 0) {
-    hint.innerHTML = `💰 成本(HKD) ${cost} × ${rate} = ${(cost*rate).toFixed(2)} RMB → 毛利 ${profit.toFixed(2)} RMB`;
+    hint.innerHTML = `💰 成本(HKD) ${cost} × ${rate} = ${(cost*rate).toFixed(2)} TWD → 毛利 ${profit.toFixed(2)} TWD`;
   }
 }
 
@@ -491,6 +543,8 @@ function saveBooking() {
   showToast(editingId ? '✅ 預訂已更新' : '✅ 預訂已新增', 'success');
   editingId = null;
   renderAll();
+  // Telegram 推播
+  if (!editingId) sendTgNotification(booking);
 }
 
 // ==================== 預訂列表渲染 ====================
@@ -598,12 +652,12 @@ function renderDashboard() {
     <div class="kpi-card">
       <div class="kpi-label">💵 總售價</div>
       <div class="kpi-value">${(totalPrice).toLocaleString()}</div>
-      <div class="kpi-sub">RMB</div>
+      <div class="kpi-sub">TWD</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">📈 總利潤</div>
       <div class="kpi-value ${totalProfit>=0?'profit':'loss'}">${totalProfit>=0?'+':''}${totalProfit.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
-      <div class="kpi-sub">RMB · 利潤率 ${profitRate.toFixed(1)}%</div>
+      <div class="kpi-sub">TWD · 利潤率 ${profitRate.toFixed(1)}%</div>
     </div>
   `;
 
@@ -632,7 +686,7 @@ function renderDashboard() {
       data: {
         labels: hotelLabels,
         datasets: [{
-          label: '利潤 (RMB)',
+          label: '利潤 (TWD)',
           data: hotelValues,
           backgroundColor: hotelValues.map(v => v>=0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)'),
           borderColor: hotelValues.map(v => v>=0 ? '#10b981' : '#ef4444'),
@@ -691,7 +745,7 @@ function renderDashboard() {
           <div><strong>${b.hotel}</strong> <span style="font-size:12px;color:var(--text-light);">${b.roomType||''}</span>
           <div style="font-size:11px;color:var(--text-light);">${b.checkIn} → ${b.checkOut} · ${b.nights}晚 · ${b.agent||''}</div></div>
           <div style="text-align:right;"><span style="font-size:11px;color:var(--text-light);">成本 ${b.cost.toLocaleString()} HKD</span>
-          <div class="${pc}" style="font-weight:700;">${b.profit>=0?'+':''}${b.profit.toLocaleString(undefined,{minimumFractionDigits:2})} RMB</div></div>
+          <div class="${pc}" style="font-weight:700;">${b.profit>=0?'+':''}${b.profit.toLocaleString(undefined,{minimumFractionDigits:2})} TWD</div></div>
         </div>`;
       }).join('');
   document.getElementById('recentList').innerHTML = recentHtml;
@@ -750,8 +804,8 @@ function exportExcel() {
     '晚數': b.nights,
     '成本(HKD)': b.cost,
     '匯率': b.rate,
-    '售價(RMB)': b.price,
-    '利潤(RMB)': Math.round(b.profit*100)/100,
+    '售價(TWD)': b.price,
+    '利潤(TWD)': Math.round(b.profit*100)/100,
   }));
   const ws = XLSX.utils.json_to_sheet(data);
   ws['!cols'] = [
@@ -810,6 +864,19 @@ function confirmClear() {
       showToast('🗑 全部數據已清除', 'error');
     }
   }
+}
+
+// ==================== Telegram 推播 ====================
+function sendTgNotification(booking) {
+  const tg = getTgSettings();
+  if (!tg.token) return;
+  const profitSign = booking.profit >= 0 ? '+' : '';
+  const text = `🏨 新預訂通知\n酒店：${booking.hotel}\n房型：${booking.roomType||'無'}\n代理：${booking.agent||'無'}\n入住：${booking.checkIn}\n退房：${booking.checkOut}\n晚數：${booking.nights}\n成本：${booking.cost} HKD\n匯率：${booking.rate}\n售價：${booking.price} TWD\n利潤：${profitSign}${booking.profit.toFixed(2)} TWD`;
+  fetch(`https://api.telegram.org/bot${tg.token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: tg.chatId || '@' + (tg.username||''), text })
+  }).catch(()=>{});
 }
 function clearFilters() {
   document.getElementById('filterDateFrom').value = '';
