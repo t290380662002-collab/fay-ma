@@ -252,6 +252,21 @@ tr:active { background: #fafbfc; }
     </div>
 
     <div class="card">
+      <div class="card-header"><h2>🏠 房型成本管理</h2></div>
+      <div class="form-group">
+        <select class="form-select" id="rpHotel" onchange="renderRoomPrices()">
+          ${HOTELS.map(h=>`<option value="${h}">${h}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <input type="text" class="form-input" id="rpRoomType" placeholder="房型" style="flex:2;">
+        <input type="number" class="form-input" id="rpCost" placeholder="成本 HKD" style="flex:1;text-align:center;" step="0.01">
+        <button class="btn btn-primary btn-sm" onclick="addRoomPrice()" style="flex-shrink:0;">＋</button>
+      </div>
+      <div class="tags-wrap" id="roomPriceTags"></div>
+    </div>
+
+    <div class="card">
       <div class="card-header"><h2>👤 代理管理</h2></div>
       <div style="display:flex;gap:8px;margin-bottom:12px;">
         <input type="text" class="form-input" id="newAgentName" placeholder="輸入代理名稱" style="flex:1;">
@@ -312,6 +327,7 @@ const DEFAULT_AGENTS = ['直客','攜程','美團','飛豬','Booking','Agoda','K
 const STORAGE_KEY = 'macau_hotel_bookings';
 const SETTINGS_KEY = 'macau_hotel_settings';
 const TG_KEY = 'macau_hotel_telegram';
+const ROOM_PRICES_KEY = 'macau_hotel_room_prices';
 
 function getBookings() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
@@ -404,28 +420,29 @@ let editingId = null;
 function openAddModal() {
   editingId = null;
   const s = getSettings();
+  const rp = getRoomPrices();
   openModal(`
     <h3>＋ 新增預訂</h3>
     <div class="form-group"><label class="form-label">酒店</label>
-      <select class="form-select" id="mHotel">${HOTELS.map(h=>`<option value="${h}">${h}</option>`).join('')}</select>
+      <select class="form-select" id="mHotel" onchange="onHotelChange()">${HOTELS.map(h=>`<option value="${h}">${h}</option>`).join('')}</select>
     </div>
     <div class="form-group"><label class="form-label">房型</label>
-      <input class="form-input" id="mRoomType" placeholder="例：豪華大床房">
+      <select class="form-select" id="mRoomType" onchange="onRoomTypeChange()"><option value="">請先選酒店</option></select>
     </div>
     <div class="form-group"><label class="form-label">代理</label>
       <select class="form-select" id="mAgent">${[''].concat(s.agents).map(a=>`<option value="${a}">${a||'請選擇'}</option>`).join('')}</select>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">入住日期</label><input type="date" class="form-input" id="mCheckIn" onchange="calcNights()"></div>
-      <div class="form-group"><label class="form-label">退房日期</label><input type="date" class="form-input" id="mCheckOut" onchange="calcNights()"></div>
+      <div class="form-group"><label class="form-label">入住日期</label><input type="date" class="form-input" id="mCheckIn" onchange="calcFromCheckIn()"></div>
+      <div class="form-group"><label class="form-label">晚數</label><input type="number" class="form-input" id="mNights" min="1" placeholder="1" value="" onchange="calcFromNights()"></div>
     </div>
-    <div class="form-group"><label class="form-label">晚數 <span class="auto-badge">自動</span></label>
-      <input class="form-input" id="mNights" readonly style="background:#f9fafb;">
+    <div class="form-group"><label class="form-label">退房日期 <span class="auto-badge">自動</span></label>
+      <input class="form-input" id="mCheckOut" readonly style="background:#f9fafb;">
     </div>
     <div class="form-row-3">
-      <div class="form-group"><label class="form-label">成本 HKD</label><input type="number" class="form-input" id="mCost" step="0.01" min="0" placeholder="0" onchange="calcProfit()"></div>
-      <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${s.defaultRate}" onchange="calcProfit()"></div>
-      <div class="form-group"><label class="form-label">售價 TWD</label><input type="number" class="form-input" id="mPrice" step="0.01" min="0" placeholder="0" onchange="calcProfit()"></div>
+      <div class="form-group"><label class="form-label">成本 HKD</label><input type="number" class="form-input" id="mCost" step="0.01" readonly style="background:#f9fafb;"></div>
+      <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${s.defaultRate}" onchange="calcAll()"></div>
+      <div class="form-group"><label class="form-label">售價 TWD <span class="auto-badge">=成本×匯率</span></label><input type="number" class="form-input" id="mPrice" step="0.01" onchange="calcAll()"></div>
     </div>
     <div class="form-group"><label class="form-label">利潤 TWD <span class="auto-badge">自動</span></label>
       <input class="form-input" id="mProfit" readonly style="background:#f9fafb;">
@@ -436,32 +453,38 @@ function openAddModal() {
       <button class="btn btn-primary btn-full" onclick="saveBooking()">💾 儲存</button>
     </div>
   `);
+  setTimeout(() => onHotelChange(), 50);
 }
 
 function openEditModal(booking) {
   editingId = booking.id;
+  const rp = getRoomPrices();
+  const hotelRooms = rp[booking.hotel] || {};
+  const roomOpts = Object.keys(hotelRooms).map(rt =>
+    `<option value="${rt}" ${rt===booking.roomType?'selected':''}>${rt} · ${hotelRooms[rt]} HKD</option>`
+  ).join('');
   openModal(`
     <h3>✏️ 編輯預訂</h3>
     <div class="form-group"><label class="form-label">酒店</label>
-      <select class="form-select" id="mHotel">${HOTELS.map(h=>`<option value="${h}" ${h===booking.hotel?'selected':''}>${h}</option>`).join('')}</select>
+      <select class="form-select" id="mHotel" onchange="onHotelChange()">${HOTELS.map(h=>`<option value="${h}" ${h===booking.hotel?'selected':''}>${h}</option>`).join('')}</select>
     </div>
     <div class="form-group"><label class="form-label">房型</label>
-      <input class="form-input" id="mRoomType" value="${booking.roomType||''}" placeholder="例：豪華大床房">
+      <select class="form-select" id="mRoomType" onchange="onRoomTypeChange()"><option value="">其他</option>${roomOpts}</select>
     </div>
     <div class="form-group"><label class="form-label">代理</label>
       <select class="form-select" id="mAgent">${[''].concat(getSettings().agents).map(a=>`<option value="${a}" ${a===booking.agent?'selected':''}>${a||'請選擇'}</option>`).join('')}</select>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">入住日期</label><input type="date" class="form-input" id="mCheckIn" value="${booking.checkIn}" onchange="calcNights()"></div>
-      <div class="form-group"><label class="form-label">退房日期</label><input type="date" class="form-input" id="mCheckOut" value="${booking.checkOut}" onchange="calcNights()"></div>
+      <div class="form-group"><label class="form-label">入住日期</label><input type="date" class="form-input" id="mCheckIn" value="${booking.checkIn}" onchange="calcFromCheckIn()"></div>
+      <div class="form-group"><label class="form-label">晚數</label><input type="number" class="form-input" id="mNights" min="1" value="${booking.nights}" onchange="calcFromNights()"></div>
     </div>
-    <div class="form-group"><label class="form-label">晚數 <span class="auto-badge">自動</span></label>
-      <input class="form-input" id="mNights" value="${booking.nights}" readonly style="background:#f9fafb;">
+    <div class="form-group"><label class="form-label">退房日期 <span class="auto-badge">自動</span></label>
+      <input class="form-input" id="mCheckOut" value="${booking.checkOut}" readonly style="background:#f9fafb;">
     </div>
     <div class="form-row-3">
-      <div class="form-group"><label class="form-label">成本 HKD</label><input type="number" class="form-input" id="mCost" step="0.01" value="${booking.cost}" onchange="calcProfit()"></div>
-      <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${booking.rate}" onchange="calcProfit()"></div>
-      <div class="form-group"><label class="form-label">售價 TWD</label><input type="number" class="form-input" id="mPrice" step="0.01" value="${booking.price}" onchange="calcProfit()"></div>
+      <div class="form-group"><label class="form-label">成本 HKD</label><input type="number" class="form-input" id="mCost" step="0.01" value="${booking.cost}" onchange="calcAll()"></div>
+      <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${booking.rate}" onchange="calcAll()"></div>
+      <div class="form-group"><label class="form-label">售價 TWD <span class="auto-badge">=成本×匯率</span></label><input type="number" class="form-input" id="mPrice" step="0.01" value="${booking.price}" onchange="calcAll()"></div>
     </div>
     <div class="form-group"><label class="form-label">利潤 TWD <span class="auto-badge">自動</span></label>
       <input class="form-input" id="mProfit" value="${booking.profit.toFixed(2)}" readonly style="background:#f9fafb;">
@@ -475,28 +498,74 @@ function openEditModal(booking) {
 }
 
 // Modal 內計算
-function calcNights() {
-  const ci = document.getElementById('mCheckIn')?.value;
-  const co = document.getElementById('mCheckOut')?.value;
-  if (ci && co) {
-    const d1 = new Date(ci), d2 = new Date(co);
-    const nights = Math.max(0, Math.round((d2 - d1) / 86400000));
-    const el = document.getElementById('mNights');
-    if (el) el.value = nights;
-    calcProfit();
+function onHotelChange() {
+  const hotel = document.getElementById('mHotel')?.value;
+  const rp = getRoomPrices();
+  const rooms = rp[hotel] || {};
+  const mRoomType = document.getElementById('mRoomType');
+  if (!mRoomType) return;
+  const keys = Object.keys(rooms);
+  if (keys.length === 0) {
+    mRoomType.innerHTML = '<option value="">（無預設房型）</option>';
+    return;
   }
+  mRoomType.innerHTML = keys.map(rt => `<option value="${rt}">${rt} · ${rooms[rt]} HKD</option>`).join('');
+  onRoomTypeChange();
 }
-function calcProfit() {
+function onRoomTypeChange() {
+  const hotel = document.getElementById('mHotel')?.value;
+  const roomType = document.getElementById('mRoomType')?.value;
+  const rp = getRoomPrices();
+  const cost = (rp[hotel] && rp[hotel][roomType]) ? rp[hotel][roomType] : 0;
+  const el = document.getElementById('mCost');
+  if (el && cost > 0) {
+    el.value = cost;
+    el.style.background = '#f9fafb';
+    el.readOnly = true;
+  } else if (el) {
+    el.readOnly = false;
+    el.style.background = '#fff';
+  }
+  calcAll();
+}
+function calcFromCheckIn() {
+  const ci = document.getElementById('mCheckIn')?.value;
+  const nights = parseInt(document.getElementById('mNights')?.value) || 0;
+  if (ci && nights > 0) {
+    const d = new Date(ci);
+    d.setDate(d.getDate() + nights);
+    document.getElementById('mCheckOut').value = d.toISOString().slice(0,10);
+  }
+  calcAll();
+}
+function calcFromNights() {
+  const ci = document.getElementById('mCheckIn')?.value;
+  const nights = parseInt(document.getElementById('mNights')?.value) || 0;
+  if (ci && nights > 0) {
+    const d = new Date(ci);
+    d.setDate(d.getDate() + nights);
+    document.getElementById('mCheckOut').value = d.toISOString().slice(0,10);
+  }
+  calcAll();
+}
+function calcAll() {
   const cost = parseFloat(document.getElementById('mCost')?.value) || 0;
   const rate = parseFloat(document.getElementById('mRate')?.value) || 4.1;
-  const price = parseFloat(document.getElementById('mPrice')?.value) || 0;
+  const priceEl = document.getElementById('mPrice');
+  // 自動售價 = 成本 × 匯率（保留用戶手動修改）
+  if (cost > 0 && priceEl) {
+    const autoPrice = Math.round(cost * rate * 100) / 100;
+    const curPrice = parseFloat(priceEl.value);
+    if (isNaN(curPrice) || curPrice === 0) {
+      priceEl.value = autoPrice;
+    }
+    const hint = document.getElementById('mCalcHint');
+    if (hint) hint.innerHTML = `💡 成本 ${cost} × ${rate} = <strong>${autoPrice} TWD</strong>（建議售價）`;
+  }
+  const price = parseFloat(priceEl?.value) || 0;
   const profit = price - cost * rate;
   const el = document.getElementById('mProfit');
   if (el) el.value = profit.toFixed(2);
-  const hint = document.getElementById('mCalcHint');
-  if (hint && cost > 0 && price > 0) {
-    hint.innerHTML = `💰 成本(HKD) ${cost} × ${rate} = ${(cost*rate).toFixed(2)} TWD → 毛利 ${profit.toFixed(2)} TWD`;
-  }
 }
 
 // 儲存預訂
@@ -506,7 +575,8 @@ function saveBooking() {
   const hotel = document.getElementById('mHotel').value;
   const agent = document.getElementById('mAgent').value;
 
-  if (!checkIn || !checkOut) { showToast('請選擇入住/退房日期', 'error'); return; }
+  if (!checkIn) { showToast('請選擇入住日期', 'error'); return; }
+  if (!checkOut) { showToast('請輸入晚數以自動計算退房日期', 'error'); return; }
   if (!hotel) { showToast('請選擇酒店', 'error'); return; }
 
   const d1 = new Date(checkIn), d2 = new Date(checkOut);
@@ -757,6 +827,7 @@ function renderSettings() {
   document.getElementById('defaultRate').value = s.defaultRate;
   document.getElementById('totalRecords').textContent = getBookings().length;
   renderAgentTags();
+  renderRoomPrices();
 }
 function saveSettings() {
   const s = getSettings();
@@ -789,6 +860,48 @@ function removeAgent(name) {
   saveSettingsObj(s);
   renderAgentTags();
   showToast('🗑 代理已刪除', 'error');
+}
+
+// ==================== 房型成本 ====================
+function getRoomPrices() {
+  try { return JSON.parse(localStorage.getItem(ROOM_PRICES_KEY) || '{}'); }
+  catch(e) { return {}; }
+}
+function saveRoomPrices(data) {
+  localStorage.setItem(ROOM_PRICES_KEY, JSON.stringify(data));
+}
+function addRoomPrice() {
+  const hotel = document.getElementById('rpHotel').value;
+  const roomType = document.getElementById('rpRoomType').value.trim();
+  const cost = parseFloat(document.getElementById('rpCost').value) || 0;
+  if (!roomType) { showToast('請輸入房型名稱', 'error'); return; }
+  if (cost <= 0) { showToast('請輸入成本 HKD', 'error'); return; }
+  const rp = getRoomPrices();
+  if (!rp[hotel]) rp[hotel] = {};
+  rp[hotel][roomType] = cost;
+  saveRoomPrices(rp);
+  document.getElementById('rpRoomType').value = '';
+  document.getElementById('rpCost').value = '';
+  renderRoomPrices();
+  showToast('✅ 房型成本已新增', 'success');
+}
+function removeRoomPrice(hotel, roomType) {
+  if (!confirm(`確定要刪除 ${hotel}「${roomType}」嗎？`)) return;
+  const rp = getRoomPrices();
+  if (rp[hotel]) delete rp[hotel][roomType];
+  if (rp[hotel] && Object.keys(rp[hotel]).length === 0) delete rp[hotel];
+  saveRoomPrices(rp);
+  renderRoomPrices();
+  showToast('🗑 已刪除', 'error');
+}
+function renderRoomPrices() {
+  const hotel = document.getElementById('rpHotel').value;
+  const rp = getRoomPrices();
+  const rooms = rp[hotel] || {};
+  const tags = Object.entries(rooms).map(([rt, c]) =>
+    `<span class="tag">${rt} · ${c.toLocaleString()} HKD <span class="tag-del" onclick="removeRoomPrice('${hotel}','${rt}')">×</span></span>`
+  ).join('');
+  document.getElementById('roomPriceTags').innerHTML = tags || '<span style="color:var(--text-light);font-size:12px;">尚無房型，請新增</span>';
 }
 
 // ==================== 匯出匯入 ====================
