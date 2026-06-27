@@ -323,9 +323,9 @@ function saveBookings(data) {
 function getSettings() {
   try {
     const d = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    return { defaultRate: d.defaultRate || 0.91, agents: d.agents || [...DEFAULT_AGENTS] };
+    return { defaultRate: d.defaultRate || 4.1, agents: d.agents || [...DEFAULT_AGENTS] };
   } catch(e) {
-    return { defaultRate: 0.91, agents: [...DEFAULT_AGENTS] };
+    return { defaultRate: 4.1, agents: [...DEFAULT_AGENTS] };
   }
 }
 function saveSettingsObj(obj) {
@@ -488,7 +488,7 @@ function calcNights() {
 }
 function calcProfit() {
   const cost = parseFloat(document.getElementById('mCost')?.value) || 0;
-  const rate = parseFloat(document.getElementById('mRate')?.value) || 0.91;
+  const rate = parseFloat(document.getElementById('mRate')?.value) || 4.1;
   const price = parseFloat(document.getElementById('mPrice')?.value) || 0;
   const profit = price - cost * rate;
   const el = document.getElementById('mProfit');
@@ -515,7 +515,7 @@ function saveBooking() {
   if (nights === 0) { showToast('退房日期必須晚於入住日期', 'error'); return; }
 
   const cost = parseFloat(document.getElementById('mCost').value) || 0;
-  const rate = parseFloat(document.getElementById('mRate').value) || 0.91;
+  const rate = parseFloat(document.getElementById('mRate').value) || 4.1;
   const price = parseFloat(document.getElementById('mPrice').value) || 0;
   const profit = price - cost * rate;
 
@@ -760,7 +760,7 @@ function renderSettings() {
 }
 function saveSettings() {
   const s = getSettings();
-  s.defaultRate = parseFloat(document.getElementById('defaultRate').value) || 0.91;
+  s.defaultRate = parseFloat(document.getElementById('defaultRate').value) || 4.1;
   saveSettingsObj(s);
   showToast('⚙️ 設定已儲存', 'success');
 }
