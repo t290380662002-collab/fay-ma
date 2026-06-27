@@ -323,7 +323,7 @@ tr:active { background: #fafbfc; }
 
 <script>
 // ==================== 數據模型 ====================
-const HOTELS = ['名匯','御園','倫敦人','威尼斯人','巴黎人','暄居','摩珀斯','巨星匯','映星匯','明星匯','君悅嘉賓軒','君悅'];
+const HOTELS = ['名匯','御園','倫敦人','威尼斯人','巴黎人','頤居','摩珀斯','巨星匯','映星匯','明星匯','君悅嘉賓軒','君悅'];
 const DEFAULT_AGENTS = ['直客','攜程','美團','飛豬','Booking','Agoda','Klook','KKday'];
 const STORAGE_KEY = 'macau_hotel_bookings';
 const SETTINGS_KEY = 'macau_hotel_settings';
@@ -332,6 +332,7 @@ const ROOM_PRICES_KEY = 'macau_hotel_room_prices';
 
 // 房型成本資料庫（HKD/晚）— 平日/週末/特殊日（2026 最新）
 const ROOM_DB = {
+  // ===== 金沙系列 =====
   '名匯': [
     { name:'查爾斯套房(大床)', code:'LSK', weekday:1000, weekend:1300, holiday:1600 },
     { name:'伊莉莎白雙床套房', code:'LS2', weekday:1000, weekend:1300, holiday:1600 },
@@ -356,7 +357,7 @@ const ROOM_DB = {
     { name:'香檳套房(大床/雙床)', code:'KPS/TPS', weekday:1000, weekend:1300, holiday:1600 }
   ],
   // ===== 新濠天地系列 (City of Dreams) =====
-  '暄居': [
+  '頤居': [
     { name:'尊尚大床客房', code:'NPK', weekday:1200, weekend:1500, holiday:1800 },
     { name:'尚尚雙床客房', code:'NPQ', weekday:1200, weekend:1500, holiday:1800 },
     { name:'尊尚客房', code:'NPS', weekday:3000, weekend:3300, holiday:3600 }
