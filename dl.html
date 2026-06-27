@@ -591,7 +591,7 @@ function openEditModal(booking) {
       <div class="form-group"><label class="form-label">售價 TWD</label><input type="number" class="form-input" id="mPriceTWD" step="0.01" value="${booking.price}" placeholder="0" onchange="onPriceTWDChange()"></div>
     </div>
     <div class="form-group"><label class="form-label">利潤 TWD <span class="auto-badge">=售價TWD−成本TWD</span></label>
-      <input class="form-input" id="mProfit" value="${booking.profit.toFixed(2)}" readonly style="background:#f9fafb;">
+      <input class="form-input" id="mProfit" value="${Math.round(booking.profit)}" readonly style="background:#f9fafb;">
     </div>
     <div class="calc-result" id="mCalcHint"></div>
     <div style="display:flex;gap:10px;margin-top:16px;">
@@ -663,7 +663,7 @@ function calcAll() {
   const rate = parseFloat(document.getElementById('mRate')?.value) || 4.1;
   const costTWD = Math.round(costHKD * rate * 100) / 100;
   const elCT = document.getElementById('mCostTWD');
-  if (elCT) elCT.value = costTWD.toFixed(2);
+  if (elCT) elCT.value = Math.round(costTWD);
 
   // 如果售價都空白，自動用成本TWD當建議售價
   const elPHD = document.getElementById('mPriceHKD');
@@ -672,15 +672,15 @@ function calcAll() {
     const phd = parseFloat(elPHD.value);
     const ptd = parseFloat(elPTD.value);
     if ((isNaN(phd)||phd===0) && (isNaN(ptd)||ptd===0)) {
-      elPTD.value = costTWD.toFixed(2);
+      elPTD.value = Math.round(costTWD);
     }
   }
 
   // 計算利潤 = 售價TWD - 成本TWD
   const priceTWD = parseFloat(elPTD?.value) || 0;
-  const profit = Math.round((priceTWD - costTWD) * 100) / 100;
+  const profit = Math.round(priceTWD - costTWD);
   const elP = document.getElementById('mProfit');
-  if (elP) elP.value = profit.toFixed(2);
+  if (elP) elP.value = profit;
   if (elP) { elP.style.color = profit>=0?'var(--success)':'var(--danger)'; }
 }
 
@@ -699,7 +699,7 @@ function onPriceTWDChange() {
   const priceTWD = parseFloat(document.getElementById('mPriceTWD')?.value);
   const elPHD = document.getElementById('mPriceHKD');
   if (!isNaN(priceTWD) && priceTWD > 0 && elPHD && rate > 0) {
-    elPHD.value = (Math.round(priceTWD / rate * 100) / 100).toFixed(2);
+    elPHD.value = Math.round(priceTWD / rate);
   }
   calcAll();
 }
@@ -722,10 +722,10 @@ function saveBooking() {
 
   const costHKD = parseFloat(document.getElementById('mCostHKD').value) || 0;
   const rate = parseFloat(document.getElementById('mRate').value) || 4.1;
-  const costTWD = Math.round(costHKD * rate * 100) / 100;
+  const costTWD = Math.round(costHKD * rate);
   const priceHKD = parseFloat(document.getElementById('mPriceHKD').value) || 0;
   const priceTWD = parseFloat(document.getElementById('mPriceTWD').value) || 0;
-  const profit = Math.round((priceTWD - costTWD) * 100) / 100;
+  const profit = Math.round(priceTWD - costTWD);
 
   const booking = {
     id: editingId || Date.now().toString(36) + Math.random().toString(36).slice(2,6),
@@ -814,7 +814,7 @@ function renderBookings() {
           <td>${b.rate}</td>
           <td>${(b.priceHKD||0).toLocaleString()}</td>
           <td>${b.price.toLocaleString()}</td>
-          <td class="${profitClass}">${profitSign}${b.profit.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+          <td class="${profitClass}">${profitSign}${Math.round(b.profit).toLocaleString()}</td>
           <td>
             <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openEditModalById('${b.id}')">✏️</button>
             <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteBooking('${b.id}')">🗑</button>
@@ -1120,7 +1120,7 @@ function sendTgNotification(booking) {
   const tg = getTgSettings();
   if (!tg.token) return;
   const profitSign = booking.profit >= 0 ? '+' : '';
-  const text = `🏨 新預訂通知\n酒店：${booking.hotel}\n房型：${booking.roomType||'無'}\n代理：${booking.agent||'無'}\n入住：${booking.checkIn}\n退房：${booking.checkOut}\n晚數：${booking.nights}\n成本：${booking.cost} HKD\n匯率：${booking.rate}\n售價：${booking.price} TWD\n利潤：${profitSign}${booking.profit.toFixed(2)} TWD`;
+  const text = `🏨 新預訂通知\n酒店：${booking.hotel}\n房型：${booking.roomType||'無'}\n代理：${booking.agent||'無'}\n入住：${booking.checkIn}\n退房：${booking.checkOut}\n晚數：${booking.nights}\n成本：${booking.cost} HKD\n匯率：${booking.rate}\n售價：${booking.price} TWD\n利潤：${profitSign}${Math.round(booking.profit)} TWD`;
   fetch(`https://api.telegram.org/bot${tg.token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
