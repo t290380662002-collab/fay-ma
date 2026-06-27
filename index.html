@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>澳門酒店預訂管理 · 游澳門旅行社</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --primary: #1a2942;
+  --primary-light: #243656;
+  --gold: #c9a962;
+  --gold-light: #d4b872;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --bg: #f0f2f5;
+  --card: #ffffff;
+  --text: #1f2937;
+  --text-light: #6b7280;
+  --border: #e5e7eb;
+  --radius: 14px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.06);
+  --transition: 0.2s ease;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans TC", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 72px; line-height: 1.5; -webkit-tap-highlight-color: transparent; }
+
+/* Header */
+.header { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); color: #fff; padding: 16px 20px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 16px rgba(26,41,66,0.25); }
+.header h1 { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
+.header .sub { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+.header .gold-dot { color: var(--gold); }
+
+/* Bottom Nav */
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -2px 12px rgba(0,0,0,0.04); }
+.bottom-nav .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 6px; font-size: 11px; color: var(--text-light); cursor: pointer; transition: var(--transition); border: none; background: none; gap: 4px; }
+.bottom-nav .nav-item.active { color: var(--primary); font-weight: 600; }
+.bottom-nav .nav-item .nav-icon { font-size: 22px; line-height: 1; }
+.bottom-nav .nav-item.active .nav-icon { color: var(--primary); }
+.bottom-nav .nav-item .nav-badge { position: absolute; top: 4px; right: calc(50% - 22px); background: var(--danger); color: #fff; font-size: 10px; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+
+/* Main Content */
+.main { max-width: 960px; margin: 0 auto; padding: 16px; }
+.view { display: none; animation: fadeIn 0.3s; }
+.view.active { display: block; }
+@keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
+
+/* Cards */
+.card { background: var(--card); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; box-shadow: var(--shadow); }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.card-header h2 { font-size: 17px; font-weight: 700; color: var(--primary); }
+.card-header .count { font-size: 13px; color: var(--text-light); background: var(--bg); padding: 4px 10px; border-radius: 20px; }
+
+/* KPI Grid */
+.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.kpi-card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+.kpi-card .kpi-label { font-size: 12px; color: var(--text-light); margin-bottom: 4px; }
+.kpi-card .kpi-value { font-size: 22px; font-weight: 800; color: var(--primary); }
+.kpi-card .kpi-value.profit { color: var(--success); }
+.kpi-card .kpi-value.loss { color: var(--danger); }
+.kpi-card .kpi-sub { font-size: 11px; color: var(--text-light); margin-top: 2px; }
+.kpi-card::before { content: ''; position: absolute; top: -8px; right: -8px; width: 40px; height: 40px; border-radius: 50%; opacity: 0.08; }
+.kpi-card:nth-child(1)::before { background: var(--primary); }
+.kpi-card:nth-child(2)::before { background: var(--gold); }
+.kpi-card:nth-child(3)::before { background: var(--success); }
+.kpi-card:nth-child(4)::before { background: var(--primary); }
+
+/* Charts */
+.chart-wrap { position: relative; max-height: 260px; margin-bottom: 10px; }
+.chart-wrap canvas { width: 100% !important; }
+
+/* Form */
+.form-group { margin-bottom: 14px; }
+.form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+.form-input, .form-select { width: 100%; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 15px; font-family: inherit; color: var(--text); background: #fff; transition: var(--transition); -webkit-appearance: none; }
+.form-input:focus, .form-select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,169,98,0.12); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.auto-badge { display: inline-block; background: var(--success); color: #fff; font-size: 10px; padding: 2px 7px; border-radius: 10px; margin-left: 6px; font-weight: 600; }
+.calc-result { font-size: 13px; color: var(--text-light); margin-top: 4px; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: var(--transition); font-family: inherit; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:active { background: var(--primary-light); }
+.btn-gold { background: var(--gold); color: #fff; }
+.btn-gold:active { background: var(--gold-light); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-danger { background: none; color: var(--danger); border: 1.5px solid var(--danger); }
+.btn-danger:active { background: #fef2f2; }
+.btn-ghost { background: none; color: var(--primary); border: 1.5px solid var(--border); }
+.btn-sm { padding: 7px 14px; font-size: 12px; border-radius: 8px; }
+.btn-xs { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
+.btn-full { width: 100%; }
+.btn-icon { width: 36px; height: 36px; padding: 0; border-radius: 50%; font-size: 18px; }
+
+/* Table */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -16px; padding: 0 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 700px; }
+th { background: var(--bg); padding: 10px 8px; text-align: left; font-size: 11px; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; position: sticky; top: 0; }
+td { padding: 10px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+tr:active { background: #fafbfc; }
+.profit-positive { color: var(--success); font-weight: 700; }
+.profit-negative { color: var(--danger); font-weight: 700; }
+.profit-zero { color: var(--text-light); }
+
+/* Filter Bar */
+.filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.filter-bar .form-input, .filter-bar .form-select { width: auto; min-width: 100px; font-size: 13px; padding: 8px 10px; }
+.filter-bar .form-input { flex: 1; min-width: 110px; }
+
+/* Settings */
+.setting-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.setting-row:last-child { border-bottom: none; }
+.setting-row .setting-label { font-size: 14px; font-weight: 600; }
+.setting-row .setting-desc { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+.tags-wrap { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.tag { display: inline-flex; align-items: center; gap: 6px; background: var(--bg); padding: 6px 12px; border-radius: 20px; font-size: 13px; }
+.tag .tag-del { cursor: pointer; color: var(--danger); font-size: 16px; line-height: 1; }
+
+/* Empty State */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-light); }
+.empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+/* Toast */
+.toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #fff; padding: 12px 24px; border-radius: 25px; font-size: 14px; font-weight: 600; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+.toast.show { opacity: 1; }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+
+/* Modal */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: flex-end; justify-content: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: #fff; width: 100%; max-width: 500px; max-height: 85vh; border-radius: 20px 20px 0 0; overflow-y: auto; padding: 20px; animation: slideUp 0.3s; }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal h3 { font-size: 18px; margin-bottom: 16px; color: var(--primary); }
+
+/* Desktop tweaks */
+@media (min-width: 768px) {
+  .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+  .form-row { grid-template-columns: 1fr 1fr 1fr; }
+  .modal { border-radius: 20px; max-width: 520px; margin-bottom: 40px; }
+  .main { padding: 24px; }
+  .table-wrap { margin: 0; padding: 0; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <h1>🏨 澳門酒店預訂管理</h1>
+  <div class="sub">游澳門旅行社 · <span class="gold-dot">◆</span> 數據即時更新</div>
+</header>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<!-- Main Content -->
+<main class="main" id="mainContent">
+
+  <!-- ========== 儀表板視圖 ========== -->
+  <div class="view active" id="dashboard-view">
+    <!-- KPI Cards -->
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <!-- 圖表區 -->
+    <div class="card" id="chartHotelCard" style="display:none;">
+      <div class="card-header"><h2>📊 各酒店利潤分佈</h2></div>
+      <div class="chart-wrap"><canvas id="chartHotel"></canvas></div>
+    </div>
+    <div class="card" id="chartAgentCard" style="display:none;">
+      <div class="card-header"><h2>🥧 各代理利潤佔比</h2></div>
+      <div class="chart-wrap"><canvas id="chartAgent"></canvas></div>
+    </div>
+
+    <!-- 最近預訂 -->
+    <div class="card" id="recentCard">
+      <div class="card-header"><h2>📋 最近預訂</h2><span class="count" id="recentCount"></span></div>
+      <div id="recentList"></div>
+    </div>
+  </div>
+
+  <!-- ========== 預訂管理視圖 ========== -->
+  <div class="view" id="bookings-view">
+    <!-- 快速操作 -->
+    <div style="display:flex;gap:10px;margin-bottom:14px;">
+      <button class="btn btn-primary btn-full" onclick="openAddModal()">＋ 新增預訂</button>
+      <button class="btn btn-gold btn-sm" onclick="exportExcel()" style="flex-shrink:0;">📥 匯出</button>
+    </div>
+
+    <!-- 篩選列 -->
+    <div class="card">
+      <div style="font-weight:700;font-size:14px;margin-bottom:10px;">🔍 篩選</div>
+      <div class="filter-bar">
+        <input type="date" class="form-input" id="filterDateFrom" placeholder="入住起" onchange="renderBookings()">
+        <input type="date" class="form-input" id="filterDateTo" placeholder="入住迄" onchange="renderBookings()">
+        <select class="form-select" id="filterHotel" onchange="renderBookings()" style="min-width:100px;">
+          <option value="">全部酒店</option>
+        </select>
+        <select class="form-select" id="filterAgent" onchange="renderBookings()" style="min-width:100px;">
+          <option value="">全部代理</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="clearFilters()">✕ 清除</button>
+      </div>
+    </div>
+
+    <!-- 數據表格 -->
+    <div class="card">
+      <div class="card-header">
+        <h2>📋 預訂列表</h2>
+        <span class="count" id="bookingCount">0筆</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>酒店</th><th>房型</th><th>代理</th><th>入住</th><th>退房</th><th>晚</th>
+              <th>成本(HKD)</th><th>匯率</th><th>售價(RMB)</th><th>利潤(RMB)</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="bookingTableBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="bookingEmpty">
+        <div class="empty-icon">📭</div>
+        <div>尚無預訂記錄</div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:6px;">點擊上方「新增預訂」開始</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 設定視圖 ========== -->
+  <div class="view" id="settings-view">
+    <div class="card">
+      <div class="card-header"><h2>⚙️ 基本設定</h2></div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">預設匯率 (HKD→RMB)</div>
+          <div class="setting-desc">新增預訂時自動帶入的匯率</div>
+        </div>
+        <input type="number" class="form-input" id="defaultRate" step="0.001" min="0.5" max="1.5" value="0.910" style="width:90px;text-align:center;" onchange="saveSettings()">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>👤 代理管理</h2></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="text" class="form-input" id="newAgentName" placeholder="輸入代理名稱" style="flex:1;">
+        <button class="btn btn-primary btn-sm" onclick="addAgent()">＋ 新增</button>
+      </div>
+      <div class="tags-wrap" id="agentTags"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>💾 數據管理</h2></div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button class="btn btn-gold btn-full" onclick="exportBackup()">📤 匯出備份 (JSON)</button>
+        <button class="btn btn-ghost btn-full" onclick="document.getElementById('importFile').click()">📥 匯入備份 (JSON)</button>
+        <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importBackup(event)">
+        <button class="btn btn-danger btn-full" onclick="confirmClear()">🗑 清除全部數據</button>
+      </div>
+      <div style="text-align:center;font-size:11px;color:var(--text-light);margin-top:12px;">
+        目前總記錄：<strong id="totalRecords">0</strong> 筆
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Bottom Navigation -->
+<nav class="bottom-nav">
+  <button class="nav-item active" data-view="dashboard" onclick="switchView('dashboard')">
+    <span class="nav-icon">📊</span>儀表板
+  </button>
+  <button class="nav-item" data-view="bookings" onclick="switchView('bookings')">
+    <span class="nav-icon">📋</span>預訂
+  </button>
+  <button class="nav-item" data-view="settings" onclick="switchView('settings')">
+    <span class="nav-icon">⚙️</span>設定
+  </button>
+</nav>
+
+<script>
+// ==================== 數據模型 ====================
+const HOTELS = ['名匯','倫敦人','威尼斯人','巴黎人','御園','明星匯','映星匯','君悅','萬豪','銀河','摩伯斯','萊佛士'];
+const DEFAULT_AGENTS = ['直客','攜程','美團','飛豬','Booking','Agoda','Klook','KKday'];
+const STORAGE_KEY = 'macau_hotel_bookings';
+const SETTINGS_KEY = 'macau_hotel_settings';
+
+function getBookings() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+function saveBookings(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+function getSettings() {
+  try {
+    const d = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    return { defaultRate: d.defaultRate || 0.91, agents: d.agents || [...DEFAULT_AGENTS] };
+  } catch(e) {
+    return { defaultRate: 0.91, agents: [...DEFAULT_AGENTS] };
+  }
+}
+function saveSettingsObj(obj) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj));
+}
+
+// ==================== Toast ====================
+let toastTimer;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, 2000);
+}
+
+// ==================== 視圖切換 ====================
+function switchView(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(view + '-view').classList.add('active');
+  document.querySelector(`[data-view="${view}"]`).classList.add('active');
+
+  if (view === 'dashboard') renderDashboard();
+  if (view === 'bookings') renderBookings();
+  if (view === 'settings') renderSettings();
+}
+
+// ==================== Modal ====================
+function openModal(html) {
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+// ==================== 表單 Modal ====================
+let editingId = null;
+
+function openAddModal() {
+  editingId = null;
+  const s = getSettings();
+  openModal(`
+    <h3>＋ 新增預訂</h3>
+    <div class="form-group"><label class="form-label">酒店</label>
+      <select class="form-select" id="mHotel">${HOTELS.map(h=>`<option value="${h}">${h}</option>`).join('')}</select>
+    </div>
+    <div class="form-group"><label class="form-label">房型</label>
+      <input class="form-input" id="mRoomType" placeholder="例：豪華大床房">
+    </div>
+    <div class="form-group"><label class="form-label">代理</label>
+      <select class="form-select" id="mAgent">${[''].concat(s.agents).map(a=>`<option value="${a}">${a||'請選擇'}</option>`).join('')}</select>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">入住日期</label><input type="date" class="form-input" id="mCheckIn" onchange="calcNights()"></div>
+      <div class="form-group"><label class="form-label">退房日期</label><input type="date" class="form-input" id="mCheckOut" onchange="calcNights()"></div>
+    </div>
+    <div class="form-group"><label class="form-label">晚數 <span class="auto-badge">自動</span></label>
+      <input class="form-input" id="mNights" readonly style="background:#f9fafb;">
+    </div>
+    <div class="form-row-3">
+      <div class="form-group"><label class="form-label">成本 HKD</label><input type="number" class="form-input" id="mCost" step="0.01" min="0" placeholder="0" onchange="calcProfit()"></div>
+      <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${s.defaultRate}" onchange="calcProfit()"></div>
+      <div class="form-group"><label class="form-label">售價 RMB</label><input type="number" class="form-input" id="mPrice" step="0.01" min="0" placeholder="0" onchange="calcProfit()"></div>
+    </div>
+    <div class="form-group"><label class="form-label">利潤 RMB <span class="auto-badge">自動</span></label>
+      <input class="form-input" id="mProfit" readonly style="background:#f9fafb;">
+    </div>
+    <div class="calc-result" id="mCalcHint"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-ghost btn-full" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary btn-full" onclick="saveBooking()">💾 儲存</button>
+    </div>
+  `);
+}
+
+function openEditModal(booking) {
+  editingId = booking.id;
+  openModal(`
+    <h3>✏️ 編輯預訂</h3>
+    <div class="form-group"><label class="form-label">酒店</label>
+      <select class="form-select" id="mHotel">${HOTELS.map(h=>`<option value="${h}" ${h===booking.hotel?'selected':''}>${h}</option>`).join('')}</select>
+    </div>
+    <div class="form-group"><label class="form-label">房型</label>
+      <input class="form-input" id="mRoomType" value="${booking.roomType||''}" placeholder="例：豪華大床房">
+    </div>
+    <div class="form-group"><label class="form-label">代理</label>
+      <select class="form-select" id="mAgent">${[''].concat(getSettings().agents).map(a=>`<option value="${a}" ${a===booking.agent?'selected':''}>${a||'請選擇'}</option>`).join('')}</select>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">入住日期</label><input type="date" class="form-input" id="mCheckIn" value="${booking.checkIn}" onchange="calcNights()"></div>
+      <div class="form-group"><label class="form-label">退房日期</label><input type="date" class="form-input" id="mCheckOut" value="${booking.checkOut}" onchange="calcNights()"></div>
+    </div>
+    <div class="form-group"><label class="form-label">晚數 <span class="auto-badge">自動</span></label>
+      <input class="form-input" id="mNights" value="${booking.nights}" readonly style="background:#f9fafb;">
+    </div>
+    <div class="form-row-3">
+      <div class="form-group"><label class="form-label">成本 HKD</label><input type="number" class="form-input" id="mCost" step="0.01" value="${booking.cost}" onchange="calcProfit()"></div>
+      <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${booking.rate}" onchange="calcProfit()"></div>
+      <div class="form-group"><label class="form-label">售價 RMB</label><input type="number" class="form-input" id="mPrice" step="0.01" value="${booking.price}" onchange="calcProfit()"></div>
+    </div>
+    <div class="form-group"><label class="form-label">利潤 RMB <span class="auto-badge">自動</span></label>
+      <input class="form-input" id="mProfit" value="${booking.profit.toFixed(2)}" readonly style="background:#f9fafb;">
+    </div>
+    <div class="calc-result" id="mCalcHint"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-ghost btn-full" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary btn-full" onclick="saveBooking()">💾 更新</button>
+    </div>
+  `);
+}
+
+// Modal 內計算
+function calcNights() {
+  const ci = document.getElementById('mCheckIn')?.value;
+  const co = document.getElementById('mCheckOut')?.value;
+  if (ci && co) {
+    const d1 = new Date(ci), d2 = new Date(co);
+    const nights = Math.max(0, Math.round((d2 - d1) / 86400000));
+    const el = document.getElementById('mNights');
+    if (el) el.value = nights;
+    calcProfit();
+  }
+}
+function calcProfit() {
+  const cost = parseFloat(document.getElementById('mCost')?.value) || 0;
+  const rate = parseFloat(document.getElementById('mRate')?.value) || 0.91;
+  const price = parseFloat(document.getElementById('mPrice')?.value) || 0;
+  const profit = price - cost * rate;
+  const el = document.getElementById('mProfit');
+  if (el) el.value = profit.toFixed(2);
+  const hint = document.getElementById('mCalcHint');
+  if (hint && cost > 0 && price > 0) {
+    hint.innerHTML = `💰 成本(HKD) ${cost} × ${rate} = ${(cost*rate).toFixed(2)} RMB → 毛利 ${profit.toFixed(2)} RMB`;
+  }
+}
+
+// 儲存預訂
+function saveBooking() {
+  const checkIn = document.getElementById('mCheckIn').value;
+  const checkOut = document.getElementById('mCheckOut').value;
+  const hotel = document.getElementById('mHotel').value;
+  const agent = document.getElementById('mAgent').value;
+
+  if (!checkIn || !checkOut) { showToast('請選擇入住/退房日期', 'error'); return; }
+  if (!hotel) { showToast('請選擇酒店', 'error'); return; }
+
+  const d1 = new Date(checkIn), d2 = new Date(checkOut);
+  const nights = Math.max(0, Math.round((d2 - d1) / 86400000));
+
+  if (nights === 0) { showToast('退房日期必須晚於入住日期', 'error'); return; }
+
+  const cost = parseFloat(document.getElementById('mCost').value) || 0;
+  const rate = parseFloat(document.getElementById('mRate').value) || 0.91;
+  const price = parseFloat(document.getElementById('mPrice').value) || 0;
+  const profit = price - cost * rate;
+
+  const booking = {
+    id: editingId || Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    checkIn, checkOut, nights,
+    hotel, roomType: document.getElementById('mRoomType').value,
+    agent, cost, rate, price,
+    profit: Math.round(profit * 100) / 100,
+    createdAt: editingId ? undefined : new Date().toISOString()
+  };
+
+  const bookings = getBookings();
+  if (editingId) {
+    const idx = bookings.findIndex(b => b.id === editingId);
+    if (idx >= 0) {
+      booking.createdAt = bookings[idx].createdAt;
+      bookings[idx] = booking;
+    }
+  } else {
+    bookings.unshift(booking);
+  }
+  saveBookings(bookings);
+  closeModal();
+  showToast(editingId ? '✅ 預訂已更新' : '✅ 預訂已新增', 'success');
+  editingId = null;
+  renderAll();
+}
+
+// ==================== 預訂列表渲染 ====================
+function renderBookings() {
+  let bookings = getBookings();
+  // Filters
+  const fHotel = document.getElementById('filterHotel')?.value || '';
+  const fAgent = document.getElementById('filterAgent')?.value || '';
+  const fFrom = document.getElementById('filterDateFrom')?.value || '';
+  const fTo = document.getElementById('filterDateTo')?.value || '';
+
+  if (fHotel) bookings = bookings.filter(b => b.hotel === fHotel);
+  if (fAgent) bookings = bookings.filter(b => b.agent === fAgent);
+  if (fFrom) bookings = bookings.filter(b => b.checkIn >= fFrom);
+  if (fTo) bookings = bookings.filter(b => b.checkIn <= fTo);
+
+  // Update filter dropdowns
+  const allBookings = getBookings();
+  const hotelsUsed = [...new Set(allBookings.map(b=>b.hotel))];
+  const agentsUsed = [...new Set(allBookings.map(b=>b.agent).filter(Boolean))];
+  document.querySelectorAll('#filterHotel option:not(:first-child)').forEach(o=>o.remove());
+  document.querySelectorAll('#filterAgent option:not(:first-child)').forEach(o=>o.remove());
+  hotelsUsed.forEach(h => {
+    const opt = document.createElement('option'); opt.value=h; opt.textContent=h;
+    document.getElementById('filterHotel').appendChild(opt);
+  });
+  agentsUsed.forEach(a => {
+    const opt = document.createElement('option'); opt.value=a; opt.textContent=a;
+    document.getElementById('filterAgent').appendChild(opt);
+  });
+
+  // Render table
+  const tbody = document.getElementById('bookingTableBody');
+  const empty = document.getElementById('bookingEmpty');
+  const count = document.getElementById('bookingCount');
+
+  count.textContent = bookings.length + '筆';
+  tbody.innerHTML = '';
+
+  if (bookings.length === 0) {
+    empty.style.display = 'block';
+    tbody.parentElement.parentElement.querySelector('table').style.display = 'none';
+  } else {
+    empty.style.display = 'none';
+    tbody.parentElement.parentElement.querySelector('table').style.display = '';
+    bookings.forEach(b => {
+      const profitClass = b.profit > 0 ? 'profit-positive' : b.profit < 0 ? 'profit-negative' : 'profit-zero';
+      const profitSign = b.profit > 0 ? '+' : '';
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${b.hotel}</strong></td>
+          <td>${b.roomType||'-'}</td>
+          <td>${b.agent||'-'}</td>
+          <td>${b.checkIn}</td>
+          <td>${b.checkOut}</td>
+          <td>${b.nights}</td>
+          <td>${b.cost.toLocaleString()}</td>
+          <td>${b.rate}</td>
+          <td>${b.price.toLocaleString()}</td>
+          <td class="${profitClass}">${profitSign}${b.profit.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+          <td>
+            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openEditModalById('${b.id}')">✏️</button>
+            <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteBooking('${b.id}')">🗑</button>
+          </td>
+        </tr>
+      `;
+    });
+  }
+}
+
+function openEditModalById(id) {
+  const b = getBookings().find(x => x.id === id);
+  if (b) openEditModal(b);
+}
+function deleteBooking(id) {
+  if (!confirm('確定要刪除這筆預訂嗎？此操作無法復原。')) return;
+  const bookings = getBookings().filter(b => b.id !== id);
+  saveBookings(bookings);
+  showToast('🗑 已刪除', 'error');
+  renderAll();
+}
+
+// ==================== 儀表板 ====================
+let chartHotelInstance, chartAgentInstance;
+
+function renderDashboard() {
+  const bookings = getBookings();
+  const totalCount = bookings.length;
+  const totalCost = bookings.reduce((s,b) => s + b.cost, 0);
+  const totalPrice = bookings.reduce((s,b) => s + b.price, 0);
+  const totalProfit = bookings.reduce((s,b) => s + b.profit, 0);
+  const profitRate = totalPrice > 0 ? (totalProfit / totalPrice * 100) : 0;
+
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">📋 總預訂數</div>
+      <div class="kpi-value">${totalCount}</div>
+      <div class="kpi-sub">筆</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">💰 總成本</div>
+      <div class="kpi-value">${totalCost.toLocaleString()}</div>
+      <div class="kpi-sub">HKD</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">💵 總售價</div>
+      <div class="kpi-value">${(totalPrice).toLocaleString()}</div>
+      <div class="kpi-sub">RMB</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">📈 總利潤</div>
+      <div class="kpi-value ${totalProfit>=0?'profit':'loss'}">${totalProfit>=0?'+':''}${totalProfit.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
+      <div class="kpi-sub">RMB · 利潤率 ${profitRate.toFixed(1)}%</div>
+    </div>
+  `;
+
+  // Charts
+  const chartHotelCard = document.getElementById('chartHotelCard');
+  const chartAgentCard = document.getElementById('chartAgentCard');
+
+  if (totalCount === 0) {
+    chartHotelCard.style.display = 'none';
+    chartAgentCard.style.display = 'none';
+  } else {
+    chartHotelCard.style.display = 'block';
+    chartAgentCard.style.display = 'block';
+
+    // Hotel profit chart
+    const hotelProfit = {};
+    HOTELS.forEach(h => { hotelProfit[h] = 0; });
+    bookings.forEach(b => { hotelProfit[b.hotel] = (hotelProfit[b.hotel]||0) + b.profit; });
+    const hotelLabels = Object.keys(hotelProfit).filter(h => hotelProfit[h] !== 0);
+    const hotelValues = hotelLabels.map(h => Math.round(hotelProfit[h]*100)/100);
+
+    if (chartHotelInstance) chartHotelInstance.destroy();
+    const ctxH = document.getElementById('chartHotel').getContext('2d');
+    chartHotelInstance = new Chart(ctxH, {
+      type: 'bar',
+      data: {
+        labels: hotelLabels,
+        datasets: [{
+          label: '利潤 (RMB)',
+          data: hotelValues,
+          backgroundColor: hotelValues.map(v => v>=0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)'),
+          borderColor: hotelValues.map(v => v>=0 ? '#10b981' : '#ef4444'),
+          borderWidth: 1,
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { grid: { color: '#f0f0f0' }, ticks: { callback: v => v>=0?'+'+v:v } }
+        }
+      }
+    });
+
+    // Agent pie chart
+    const agentProfit = {};
+    bookings.forEach(b => {
+      const a = b.agent || '其他';
+      agentProfit[a] = (agentProfit[a]||0) + b.profit;
+    });
+    const agentLabels = Object.keys(agentProfit);
+    const agentValues = agentLabels.map(a => Math.round(agentProfit[a]*100)/100);
+
+    if (chartAgentInstance) chartAgentInstance.destroy();
+    const ctxA = document.getElementById('chartAgent').getContext('2d');
+    chartAgentInstance = new Chart(ctxA, {
+      type: 'doughnut',
+      data: {
+        labels: agentLabels,
+        datasets: [{
+          data: agentValues.map(v => Math.abs(v)),
+          backgroundColor: ['#1a2942','#c9a962','#10b981','#3b82f6','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316'],
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 11 } } }
+        }
+      }
+    });
+  }
+
+  // Recent list
+  const recent = bookings.slice(0, 5);
+  document.getElementById('recentCount').textContent = recent.length + '筆';
+  const recentHtml = recent.length === 0
+    ? '<div class="empty-state"><div class="empty-icon">📭</div><div>尚無預訂記錄</div></div>'
+    : recent.map(b => {
+        const pc = b.profit > 0 ? 'profit-positive' : b.profit < 0 ? 'profit-negative' : 'profit-zero';
+        return `<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <div><strong>${b.hotel}</strong> <span style="font-size:12px;color:var(--text-light);">${b.roomType||''}</span>
+          <div style="font-size:11px;color:var(--text-light);">${b.checkIn} → ${b.checkOut} · ${b.nights}晚 · ${b.agent||''}</div></div>
+          <div style="text-align:right;"><span style="font-size:11px;color:var(--text-light);">成本 ${b.cost.toLocaleString()} HKD</span>
+          <div class="${pc}" style="font-weight:700;">${b.profit>=0?'+':''}${b.profit.toLocaleString(undefined,{minimumFractionDigits:2})} RMB</div></div>
+        </div>`;
+      }).join('');
+  document.getElementById('recentList').innerHTML = recentHtml;
+}
+
+// ==================== 設定 ====================
+function renderSettings() {
+  const s = getSettings();
+  document.getElementById('defaultRate').value = s.defaultRate;
+  document.getElementById('totalRecords').textContent = getBookings().length;
+  renderAgentTags();
+}
+function saveSettings() {
+  const s = getSettings();
+  s.defaultRate = parseFloat(document.getElementById('defaultRate').value) || 0.91;
+  saveSettingsObj(s);
+  showToast('⚙️ 設定已儲存', 'success');
+}
+function renderAgentTags() {
+  const s = getSettings();
+  document.getElementById('agentTags').innerHTML = s.agents.map(a =>
+    `<span class="tag">${a} <span class="tag-del" onclick="removeAgent('${a}')">×</span></span>`
+  ).join('');
+}
+function addAgent() {
+  const input = document.getElementById('newAgentName');
+  const name = input.value.trim();
+  if (!name) { showToast('請輸入代理名稱', 'error'); return; }
+  const s = getSettings();
+  if (s.agents.includes(name)) { showToast('代理已存在', 'error'); return; }
+  s.agents.push(name);
+  saveSettingsObj(s);
+  input.value = '';
+  renderAgentTags();
+  showToast('✅ 代理已新增', 'success');
+}
+function removeAgent(name) {
+  if (!confirm(`確定要刪除代理「${name}」嗎？`)) return;
+  const s = getSettings();
+  s.agents = s.agents.filter(a => a !== name);
+  saveSettingsObj(s);
+  renderAgentTags();
+  showToast('🗑 代理已刪除', 'error');
+}
+
+// ==================== 匯出匯入 ====================
+function exportExcel() {
+  const bookings = getFilteredBookings();
+  if (bookings.length === 0) { showToast('沒有數據可匯出', 'error'); return; }
+  const data = bookings.map(b => ({
+    '酒店': b.hotel,
+    '房型': b.roomType||'',
+    '代理': b.agent||'',
+    '入住日期': b.checkIn,
+    '退房日期': b.checkOut,
+    '晚數': b.nights,
+    '成本(HKD)': b.cost,
+    '匯率': b.rate,
+    '售價(RMB)': b.price,
+    '利潤(RMB)': Math.round(b.profit*100)/100,
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [
+    {wch:12},{wch:16},{wch:10},{wch:12},{wch:12},{wch:8},{wch:12},{wch:8},{wch:12},{wch:12}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '預訂記錄');
+  XLSX.writeFile(wb, `澳門酒店預訂_${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast('📥 已匯出 Excel', 'success');
+}
+function getFilteredBookings() {
+  let bookings = getBookings();
+  const fHotel = document.getElementById('filterHotel')?.value || '';
+  const fAgent = document.getElementById('filterAgent')?.value || '';
+  const fFrom = document.getElementById('filterDateFrom')?.value || '';
+  const fTo = document.getElementById('filterDateTo')?.value || '';
+  if (fHotel) bookings = bookings.filter(b => b.hotel === fHotel);
+  if (fAgent) bookings = bookings.filter(b => b.agent === fAgent);
+  if (fFrom) bookings = bookings.filter(b => b.checkIn >= fFrom);
+  if (fTo) bookings = bookings.filter(b => b.checkIn <= fTo);
+  return bookings;
+}
+function exportBackup() {
+  const data = { bookings: getBookings(), settings: getSettings(), exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=`澳門酒店備份_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast('📤 備份已匯出', 'success');
+}
+function importBackup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.bookings || !Array.isArray(data.bookings)) throw new Error('格式錯誤');
+      if (!confirm(`即將匯入 ${data.bookings.length} 筆預訂記錄，會覆蓋現有數據，確定繼續？`)) return;
+      saveBookings(data.bookings);
+      if (data.settings) saveSettingsObj(data.settings);
+      showToast(`✅ 已匯入 ${data.bookings.length} 筆記錄`, 'success');
+      renderAll();
+    } catch(err) {
+      showToast('❌ 檔案格式錯誤', 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+function confirmClear() {
+  if (confirm('⚠️ 確定要清除所有預訂記錄嗎？此操作無法復原！\n\n建議先匯出備份。')) {
+    if (confirm('再次確認：真的要刪除全部數據嗎？')) {
+      saveBookings([]);
+      renderAll();
+      showToast('🗑 全部數據已清除', 'error');
+    }
+  }
+}
+function clearFilters() {
+  document.getElementById('filterDateFrom').value = '';
+  document.getElementById('filterDateTo').value = '';
+  document.getElementById('filterHotel').value = '';
+  document.getElementById('filterAgent').value = '';
+  renderBookings();
+}
+
+// ==================== 統一渲染 ====================
+function renderAll() {
+  renderBookings();
+  renderDashboard();
+}
+
+// ==================== 初始化 ====================
+document.addEventListener('DOMContentLoaded', () => {
+  renderAll();
+  renderSettings();
+});
+</script>
+
+</body>
+</html>
