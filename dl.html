@@ -1007,6 +1007,9 @@ function renderAll() {
 
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', () => {
+  // 強制修正舊匯率資料
+  const s = getSettings();
+  if (s.defaultRate < 3) { s.defaultRate = 4.1; saveSettingsObj(s); }
   renderAll();
   renderSettings();
 });
