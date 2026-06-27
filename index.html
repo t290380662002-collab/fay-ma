@@ -252,18 +252,21 @@ tr:active { background: #fafbfc; }
     </div>
 
     <div class="card">
-      <div class="card-header"><h2>🏠 房型成本管理</h2></div>
+      <div class="card-header"><h2>🏠 房型成本表（點選查看）</h2></div>
       <div class="form-group">
         <select class="form-select" id="rpHotel" onchange="renderRoomPrices()">
           ${HOTELS.map(h=>`<option value="${h}">${h}</option>`).join('')}
         </select>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:10px;">
-        <input type="text" class="form-input" id="rpRoomType" placeholder="房型" style="flex:2;">
-        <input type="number" class="form-input" id="rpCost" placeholder="成本 HKD" style="flex:1;text-align:center;" step="0.01">
-        <button class="btn btn-primary btn-sm" onclick="addRoomPrice()" style="flex-shrink:0;">＋</button>
+      <div class="table-wrap" style="margin:0;">
+        <table style="min-width:400px;">
+          <thead><tr><th>房型</th><th>Code</th><th>平日</th><th>週末</th><th>特殊日</th></tr></thead>
+          <tbody id="roomPriceTable"></tbody>
+        </table>
       </div>
-      <div class="tags-wrap" id="roomPriceTags"></div>
+      <div class="calc-result" style="margin-top:8px;">
+        💡 週末 = 週五/六 · 特殊日 = 澳門公眾假期 · 成本單位 HKD/晚
+      </div>
     </div>
 
     <div class="card">
@@ -328,6 +331,93 @@ const STORAGE_KEY = 'macau_hotel_bookings';
 const SETTINGS_KEY = 'macau_hotel_settings';
 const TG_KEY = 'macau_hotel_telegram';
 const ROOM_PRICES_KEY = 'macau_hotel_room_prices';
+
+// 房型成本資料庫（HKD/晚）— 平日/週末/特殊日
+const ROOM_DB = {
+  '名匯': [
+    { name:'查爾斯套房(大床)', code:'LSK', weekday:1000, weekend:1300, holiday:1600 },
+    { name:'伊莉莎白雙床套房', code:'LS2', weekday:1000, weekend:1300, holiday:1600 },
+    { name:'諾曼套房', code:'N2B', weekday:6000, weekend:6300, holiday:6600 }
+  ],
+  '御園': [
+    { name:'梅費爾客房', code:'CM1', weekday:2000, weekend:2300, holiday:2600 },
+    { name:'騎士橋套房', code:'CK2', weekday:6000, weekend:6300, holiday:6600 }
+  ],
+  '倫敦人': [
+    { name:'路易套房(大床)', code:'KC', weekday:1000, weekend:1300, holiday:1600 },
+    { name:'維多利亞套房(雙床)', code:'TC', weekday:1000, weekend:1300, holiday:1600 },
+    { name:'溫莎套房', code:'KS/TS', weekday:2000, weekend:2300, holiday:2600 }
+  ],
+  '威尼斯人': [
+    { name:'皇室套房(大床)', code:'KC', weekday:1000, weekend:1300, holiday:1600 },
+    { name:'貝麗套房(雙床)', code:'TC', weekday:1000, weekend:1300, holiday:1600 },
+    { name:'維雅套房', code:'KS/TS', weekday:2000, weekend:2300, holiday:2600 }
+  ],
+  '巴黎人': [
+    { name:'里昂套房', code:'KS/TS', weekday:1000, weekend:1300, holiday:1600 },
+    { name:'香檳套房', code:'KPS/TPS', weekday:1000, weekend:1300, holiday:1600 }
+  ],
+  '明星匯': [
+    { name:'明星客房(大床)', code:'KC', weekday:1000, weekend:1300, holiday:1600 },
+    { name:'明星客房(雙床)', code:'TC', weekday:1000, weekend:1300, holiday:1600 },
+    { name:'明星套房', code:'KS', weekday:2000, weekend:2300, holiday:2600 }
+  ],
+  '映星匯': [
+    { name:'映星客房', code:'KC', weekday:1000, weekend:1300, holiday:1600 },
+    { name:'映星套房', code:'KS', weekday:2000, weekend:2300, holiday:2600 }
+  ],
+  '君悅': [
+    { name:'君悅客房', code:'KC', weekday:1200, weekend:1500, holiday:1800 },
+    { name:'君悅套房', code:'KS', weekday:2200, weekend:2500, holiday:2800 }
+  ],
+  '萬豪': [
+    { name:'豪華客房', code:'DC', weekday:1200, weekend:1500, holiday:1800 },
+    { name:'豪華套房', code:'DS', weekday:2200, weekend:2500, holiday:2800 }
+  ],
+  '銀河': [
+    { name:'銀河客房', code:'GC', weekday:1200, weekend:1500, holiday:1800 },
+    { name:'銀河套房', code:'GS', weekday:2200, weekend:2500, holiday:2800 }
+  ],
+  '摩伯斯': [
+    { name:'摩伯斯客房', code:'MC', weekday:1500, weekend:1800, holiday:2200 },
+    { name:'摩伯斯套房', code:'MS', weekday:3000, weekend:3500, holiday:4200 }
+  ],
+  '萊佛士': [
+    { name:'萊佛士客房', code:'RC', weekday:1500, weekend:1800, holiday:2200 },
+    { name:'萊佛士套房', code:'RS', weekday:3000, weekend:3500, holiday:4200 }
+  ]
+};
+
+// 特殊假日（澳門公眾假期 2026）
+const SPECIAL_HOLIDAYS = [
+  '2026-01-01','2026-02-17','2026-02-18','2026-02-19', // 元旦, 春節
+  '2026-04-03','2026-04-04', // 清明+復活
+  '2026-05-01', // 勞動節
+  '2026-05-31', // 端午節
+  '2026-10-01','2026-10-02', // 國慶+中秋
+  '2026-12-25','2026-12-26', // 聖誕
+  '2026-07-01', // 回歸紀念日前後
+  '2026-09-28','2026-09-29' // 中秋
+];
+
+// 判斷日期類型
+function getDateType(dateStr) {
+  if (!dateStr) return 'weekday';
+  const d = new Date(dateStr + 'T00:00:00+08:00');
+  const day = d.getDay(); // 0=Sun, 5=Fri, 6=Sat
+  if (SPECIAL_HOLIDAYS.includes(dateStr)) return 'holiday';
+  if (day === 5 || day === 6) return 'weekend'; // 週五週六
+  return 'weekday';
+}
+
+function getRoomCost(hotel, roomName, dateStr) {
+  const rooms = ROOM_DB[hotel];
+  if (!rooms) return 0;
+  const room = rooms.find(r => r.name === roomName);
+  if (!room) return 0;
+  const type = getDateType(dateStr);
+  return room[type];
+}
 
 function getBookings() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
@@ -458,10 +548,9 @@ function openAddModal() {
 
 function openEditModal(booking) {
   editingId = booking.id;
-  const rp = getRoomPrices();
-  const hotelRooms = rp[booking.hotel] || {};
-  const roomOpts = Object.keys(hotelRooms).map(rt =>
-    `<option value="${rt}" ${rt===booking.roomType?'selected':''}>${rt} · ${hotelRooms[rt]} HKD</option>`
+  const rooms = ROOM_DB[booking.hotel] || [];
+  const roomOpts = rooms.map(r =>
+    `<option value="${r.name}" ${r.name===booking.roomType?'selected':''}>${r.name} · ${r.code} · ${r.weekday}/${r.weekend}/${r.holiday} HKD</option>`
   ).join('');
   openModal(`
     <h3>✏️ 編輯預訂</h3>
@@ -500,29 +589,35 @@ function openEditModal(booking) {
 // Modal 內計算
 function onHotelChange() {
   const hotel = document.getElementById('mHotel')?.value;
-  const rp = getRoomPrices();
-  const rooms = rp[hotel] || {};
+  const rooms = ROOM_DB[hotel] || [];
   const mRoomType = document.getElementById('mRoomType');
   if (!mRoomType) return;
-  const keys = Object.keys(rooms);
-  if (keys.length === 0) {
+  if (rooms.length === 0) {
     mRoomType.innerHTML = '<option value="">（無預設房型）</option>';
     return;
   }
-  mRoomType.innerHTML = keys.map(rt => `<option value="${rt}">${rt} · ${rooms[rt]} HKD</option>`).join('');
+  mRoomType.innerHTML = rooms.map(r =>
+    `<option value="${r.name}">${r.name} · ${r.code} · ${r.weekday}/${r.weekend}/${r.holiday} HKD</option>`
+  ).join('');
   onRoomTypeChange();
 }
 function onRoomTypeChange() {
   const hotel = document.getElementById('mHotel')?.value;
-  const roomType = document.getElementById('mRoomType')?.value;
-  const rp = getRoomPrices();
-  const cost = (rp[hotel] && rp[hotel][roomType]) ? rp[hotel][roomType] : 0;
+  const roomName = document.getElementById('mRoomType')?.value;
+  const checkIn = document.getElementById('mCheckIn')?.value;
   const el = document.getElementById('mCost');
-  if (el && cost > 0) {
+  if (!el) return;
+  const cost = getRoomCost(hotel, roomName, checkIn);
+  if (cost > 0) {
     el.value = cost;
     el.style.background = '#f9fafb';
     el.readOnly = true;
-  } else if (el) {
+    // 顯示日期類型
+    const type = getDateType(checkIn);
+    const typeLabel = type==='holiday'?'🔥特殊日':type==='weekend'?'📅週末':'📋平日';
+    const hint = document.getElementById('mCalcHint');
+    if (hint) hint.innerHTML = `${typeLabel} 成本：${cost} HKD`;
+  } else {
     el.readOnly = false;
     el.style.background = '#fff';
   }
@@ -536,6 +631,7 @@ function calcFromCheckIn() {
     d.setDate(d.getDate() + nights);
     document.getElementById('mCheckOut').value = d.toISOString().slice(0,10);
   }
+  onRoomTypeChange();
   calcAll();
 }
 function calcFromNights() {
@@ -870,39 +966,21 @@ function getRoomPrices() {
 function saveRoomPrices(data) {
   localStorage.setItem(ROOM_PRICES_KEY, JSON.stringify(data));
 }
-function addRoomPrice() {
-  const hotel = document.getElementById('rpHotel').value;
-  const roomType = document.getElementById('rpRoomType').value.trim();
-  const cost = parseFloat(document.getElementById('rpCost').value) || 0;
-  if (!roomType) { showToast('請輸入房型名稱', 'error'); return; }
-  if (cost <= 0) { showToast('請輸入成本 HKD', 'error'); return; }
-  const rp = getRoomPrices();
-  if (!rp[hotel]) rp[hotel] = {};
-  rp[hotel][roomType] = cost;
-  saveRoomPrices(rp);
-  document.getElementById('rpRoomType').value = '';
-  document.getElementById('rpCost').value = '';
-  renderRoomPrices();
-  showToast('✅ 房型成本已新增', 'success');
-}
-function removeRoomPrice(hotel, roomType) {
-  if (!confirm(`確定要刪除 ${hotel}「${roomType}」嗎？`)) return;
-  const rp = getRoomPrices();
-  if (rp[hotel]) delete rp[hotel][roomType];
-  if (rp[hotel] && Object.keys(rp[hotel]).length === 0) delete rp[hotel];
-  saveRoomPrices(rp);
-  renderRoomPrices();
-  showToast('🗑 已刪除', 'error');
-}
 function renderRoomPrices() {
-  const hotel = document.getElementById('rpHotel').value;
-  const rp = getRoomPrices();
-  const rooms = rp[hotel] || {};
-  const tags = Object.entries(rooms).map(([rt, c]) =>
-    `<span class="tag">${rt} · ${c.toLocaleString()} HKD <span class="tag-del" onclick="removeRoomPrice('${hotel}','${rt}')">×</span></span>`
+  const hotel = document.getElementById('rpHotel')?.value || HOTELS[0];
+  const rooms = ROOM_DB[hotel] || [];
+  const tbody = document.getElementById('roomPriceTable');
+  if (!tbody) return;
+  if (rooms.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-light);">尚無資料</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rooms.map(r =>
+    `<tr><td><strong>${r.name}</strong></td><td>${r.code}</td><td>${r.weekday.toLocaleString()}</td><td>${r.weekend.toLocaleString()}</td><td>${r.holiday.toLocaleString()}</td></tr>`
   ).join('');
-  document.getElementById('roomPriceTags').innerHTML = tags || '<span style="color:var(--text-light);font-size:12px;">尚無房型，請新增</span>';
 }
+function removeRoomPrice(hotel, roomType) { /* 由 ROOM_DB 管理，刪除功能暫不開放 */ }
+function addRoomPrice() { /* 由 ROOM_DB 管理，新增功能暫不開放 */ }
 
 // ==================== 匯出匯入 ====================
 function exportExcel() {
