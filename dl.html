@@ -1194,12 +1194,13 @@ function clearFilters() {
 function renderAll() {
   renderBookings();
   renderDashboard();
+  renderCommission();
 }
 
 // ==================== 分潤 ====================
 function getCommissionRates(agent) {
   if (agent === '三交') return {Alen:35, 大飛:35, 三交:30};
-  if (agent === '大飛') return {Alen:50, 大飛:50};
+  if (agent === '大飛' || agent === '飛') return {Alen:50, 大飛:50};
   return {};
 }
 function renderCommission() {
