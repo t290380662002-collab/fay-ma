@@ -694,12 +694,11 @@ function onHotelChange() {
     if (mCheckIn && !mCheckIn.value) {
       mCheckIn.value = new Date().toISOString().slice(0,10);
     }
-    // 預設1晚
-    const mNights = document.getElementById('mNights');
-    if (mNights && !mNights.value) mNights.value = '1';
-    // 預設1間
+    // 預設1間（晚數由用戶手填）
     const mRooms = document.getElementById('mRooms');
     if (mRooms && !mRooms.value) mRooms.value = '1';
+    // 延遲觸發計算（等DOM更新）
+    setTimeout(() => { calcFromCheckIn(); calcAll(); }, 100);
   }
   if (rooms.length === 0) {
     mRoomType.innerHTML = '<option value="">（無預設房型）</option>';
