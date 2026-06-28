@@ -420,7 +420,7 @@ const ROOM_DB = {
     { name:'君悅套房', code:'GRST', weekday:800, weekend:1100, holiday:1400 }
   ],
   '探險': [
-    { name:'標準房', code:'STD', weekday:300, weekend:300, holiday:300 }
+    { name:'標準房', code:'STD', weekday:0, weekend:0, holiday:0 }
   ]
 };
 
@@ -727,8 +727,17 @@ function onRoomTypeChange() {
     const hint = document.getElementById('mCalcHint');
     if (hint) hint.innerHTML = `${typeLabel} 成本：${cost} HKD`;
   } else {
-    el.readOnly = false;
-    el.style.background = '#fff';
+    // 探險：成本=0，利潤=售價
+    if (hotel === '探險') {
+      el.value = '0';
+      el.readOnly = true;
+      el.style.background = '#f9fafb';
+      const hint = document.getElementById('mCalcHint');
+      if (hint) hint.innerHTML = '💰 售價建議：300 MOP/人（成本=0，利潤=售價）';
+    } else {
+      el.readOnly = false;
+      el.style.background = '#fff';
+    }
   }
   calcAll();
 }
@@ -762,14 +771,24 @@ function calcAll() {
   const elCT = document.getElementById('mCostTWD');
   if (elCT) elCT.value = Math.round(costTWD);
 
-  // 如果售價都空白，自動用成本TWD當建議售價（利潤=0）
+  // 探險：售價自動填入 300 MOP × 人數 × 間數（成本=0，利潤=售價）
+  // 其他酒店：售價空白時自動填成本TWD（利潤=0）
+  const hotel = document.getElementById('mHotel')?.value;
   const elPHD = document.getElementById('mPriceHKD');
   const elPTD = document.getElementById('mPriceTWD');
-  if (elPTD && elPHD && totalCost > 0) {
+  if (elPTD && elPHD) {
     const phd = parseFloat(elPHD.value);
     const ptd = parseFloat(elPTD.value);
     if ((isNaN(phd)||phd===0) && (isNaN(ptd)||ptd===0)) {
-      elPTD.value = Math.round(costTWD);
+      if (hotel === '探險') {
+        const nights = parseInt(document.getElementById('mNights')?.value) || 1;
+        const roomsForPrice = parseInt(document.getElementById('mRooms')?.value) || 1;
+        const suggestMOP = 300 * nights * roomsForPrice;
+        elPHD.value = suggestMOP;
+        elPTD.value = Math.round(suggestMOP * rate);
+      } else if (totalCost > 0) {
+        elPTD.value = Math.round(costTWD);
+      }
     }
   }
 
