@@ -568,10 +568,11 @@ function openAddModal() {
     <div class="form-group"><label class="form-label">代理</label>
       <select class="form-select" id="mAgent">${[''].concat(s.agents).map(a=>`<option value="${a}">${a||'請選擇'}</option>`).join('')}</select>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="nightsRoomsRow">
       <div class="form-group"><label class="form-label">入住日期</label><input type="date" class="form-input" id="mCheckIn" onchange="calcFromCheckIn()"></div>
-      <div class="form-group"><label class="form-label">晚數</label><input type="number" class="form-input" id="mNights" min="1" placeholder="1" value="" onchange="calcFromNights()"></div>
+      <div class="form-group"><label class="form-label">晚數／人數</label><input type="number" class="form-input" id="mNights" min="1" placeholder="1" value="" onchange="calcFromNights()"></div>
     </div>
+    <div class="form-group"><label class="form-label">間數</label><input type="number" class="form-input" id="mRooms" min="1" placeholder="1" value="1" onchange="calcAll()"></div>
     <div class="form-group"><label class="form-label">退房日期 <span class="auto-badge">自動</span></label>
       <input class="form-input" id="mCheckOut" readonly style="background:#f9fafb;">
     </div>
@@ -621,17 +622,18 @@ function openEditModal(booking) {
     <div class="form-group"><label class="form-label">代理</label>
       <select class="form-select" id="mAgent">${[''].concat(getSettings().agents).map(a=>`<option value="${a}" ${a===booking.agent?'selected':''}>${a||'請選擇'}</option>`).join('')}</select>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="nightsRoomsRow">
       <div class="form-group"><label class="form-label">入住日期</label><input type="date" class="form-input" id="mCheckIn" value="${booking.checkIn}" onchange="calcFromCheckIn()"></div>
-      <div class="form-group"><label class="form-label">晚數</label><input type="number" class="form-input" id="mNights" min="1" value="${booking.nights}" onchange="calcFromNights()"></div>
+      <div class="form-group"><label class="form-label">晚數／人數</label><input type="number" class="form-input" id="mNights" min="1" value="${booking.nights}" onchange="calcFromNights()"></div>
     </div>
+    <div class="form-group"><label class="form-label">間數</label><input type="number" class="form-input" id="mRooms" min="1" value="${booking.rooms||1}" onchange="calcAll()"></div>
     <div class="form-group"><label class="form-label">退房日期 <span class="auto-badge">自動</span></label>
       <input class="form-input" id="mCheckOut" value="${booking.checkOut}" readonly style="background:#f9fafb;">
     </div>
     <div class="form-row-3">
-      <div class="form-group"><label class="form-label">成本 HKD</label><input type="number" class="form-input" id="mCostHKD" step="0.01" value="${booking.cost}" onchange="calcAll()"></div>
+      <div class="form-group"><label class="form-label" id="mCostLabel">成本 HKD</label><input type="number" class="form-input" id="mCostHKD" step="0.01" value="${booking.cost}" onchange="calcAll()"></div>
       <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${booking.rate}" onchange="calcAll()"></div>
-      <div class="form-group"><label class="form-label">成本 TWD <span class="auto-badge">=HKD×匯率</span></label><input type="number" class="form-input" id="mCostTWD" step="0.01" readonly style="background:#f9fafb;"></div>
+      <div class="form-group"><label class="form-label">成本 TWD <span class="auto-badge" id="mCostTWDHint">=HKD×匯率</span></label><input type="number" class="form-input" id="mCostTWD" step="0.01" readonly style="background:#f9fafb;"></div>
     </div>
     <div class="form-row-3">
       <div class="form-group"><label class="form-label">售價 HKD</label><input type="number" class="form-input" id="mPriceHKD" step="0.01" value="${booking.priceHKD||''}" placeholder="0" onchange="onPriceHKDChange()"></div>
@@ -681,6 +683,23 @@ function onHotelChange() {
   const mCollector = document.getElementById('mCollector');
   if (mCollector && hotel === '探險') {
     mCollector.value = 'Alen';
+  }
+  // 探險專屬預設
+  if (hotel === '探險') {
+    // 代理預設三交
+    const mAgent = document.getElementById('mAgent');
+    if (mAgent) mAgent.value = '三交';
+    // 入住預設今天
+    const mCheckIn = document.getElementById('mCheckIn');
+    if (mCheckIn && !mCheckIn.value) {
+      mCheckIn.value = new Date().toISOString().slice(0,10);
+    }
+    // 預設1晚
+    const mNights = document.getElementById('mNights');
+    if (mNights && !mNights.value) mNights.value = '1';
+    // 預設1間
+    const mRooms = document.getElementById('mRooms');
+    if (mRooms && !mRooms.value) mRooms.value = '1';
   }
   if (rooms.length === 0) {
     mRoomType.innerHTML = '<option value="">（無預設房型）</option>';
@@ -736,15 +755,17 @@ function calcFromNights() {
 }
 function calcAll() {
   const costHKD = parseFloat(document.getElementById('mCostHKD')?.value) || 0;
+  const rooms = parseInt(document.getElementById('mRooms')?.value) || 1;
+  const totalCost = costHKD * rooms;
   const rate = parseFloat(document.getElementById('mRate')?.value) || 4.1;
-  const costTWD = Math.round(costHKD * rate * 100) / 100;
+  const costTWD = Math.round(totalCost * rate * 100) / 100;
   const elCT = document.getElementById('mCostTWD');
   if (elCT) elCT.value = Math.round(costTWD);
 
-  // 如果售價都空白，自動用成本TWD當建議售價
+  // 如果售價都空白，自動用成本TWD當建議售價（利潤=0）
   const elPHD = document.getElementById('mPriceHKD');
   const elPTD = document.getElementById('mPriceTWD');
-  if (elPTD && elPHD && costHKD > 0) {
+  if (elPTD && elPHD && totalCost > 0) {
     const phd = parseFloat(elPHD.value);
     const ptd = parseFloat(elPTD.value);
     if ((isNaN(phd)||phd===0) && (isNaN(ptd)||ptd===0)) {
@@ -802,8 +823,9 @@ function saveBooking() {
   if (nights === 0) { showToast('退房日期必須晚於入住日期', 'error'); return; }
 
   const costHKD = parseFloat(document.getElementById('mCostHKD').value) || 0;
+  const rooms = parseInt(document.getElementById('mRooms')?.value) || 1;
   const rate = parseFloat(document.getElementById('mRate').value) || 4.1;
-  const costTWD = Math.round(costHKD * rate);
+  const costTWD = Math.round(costHKD * rooms * rate);
   const priceHKD = parseFloat(document.getElementById('mPriceHKD').value) || 0;
   const priceTWD = parseFloat(document.getElementById('mPriceTWD').value) || 0;
   const profit = Math.round(priceTWD - costTWD);
@@ -812,7 +834,7 @@ function saveBooking() {
     id: editingId || Date.now().toString(36) + Math.random().toString(36).slice(2,6),
     checkIn, checkOut, nights,
     hotel, roomType: document.getElementById('mRoomType').value,
-    agent, cost: costHKD, costTWD, rate, price: priceTWD, priceHKD,
+    agent, cost: costHKD, costTWD, rate, price: priceTWD, priceHKD, rooms,
     deposit: parseFloat(document.getElementById('mDeposit').value)||0, depositCollector: document.getElementById('mCollector').value,
     profit,
     createdAt: editingId ? undefined : new Date().toISOString()
