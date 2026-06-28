@@ -1206,7 +1206,10 @@ function renderCommission() {
   const bookings = getBookings();
   const totalPrice = bookings.reduce((s,b) => s + (b.price||0), 0);
   const totalDeposit = bookings.reduce((s,b) => s + (b.deposit||0), 0);
+  const totalCostTWD = bookings.reduce((s,b) => s + (b.costTWD||b.cost*b.rate||0), 0);
   const totalUnpaid = totalPrice - totalDeposit;
+  const collectedBookings = bookings.filter(b => (b.deposit||0) > 0);
+  const uncollectedBookings = bookings.filter(b => !(b.deposit||0));
 
   // 代理分潤統計
   const agentStats = {};
@@ -1217,14 +1220,14 @@ function renderCommission() {
     agentStats[a].profit += b.profit || 0;
   });
 
-  let totalAlen=0, totalFei=0, totalSan=0, totalP=0, totalC=0;
+  let totalAlen=0, totalFei=0, totalSan=0, totalP=0;
   const tableHtml = Object.entries(agentStats).map(([a,s]) => {
     const rates = getCommissionRates(a);
     const alen = Math.round(s.profit * (rates.Alen||0)/100);
     const fei = Math.round(s.profit * (rates['大飛']||0)/100);
     const san = Math.round(s.profit * (rates['三交']||0)/100);
     totalAlen += alen; totalFei += fei; totalSan += san;
-    totalP += s.profit; totalC += s.count;
+    totalP += s.profit;
     return `<tr><td><strong>${a}</strong></td><td>${s.count}</td><td>${Math.round(s.profit).toLocaleString()}</td><td>${alen.toLocaleString()}</td><td>${fei.toLocaleString()}</td><td>${san.toLocaleString()}</td></tr>`;
   }).join('');
 
@@ -1232,17 +1235,30 @@ function renderCommission() {
 
   // 收款概覽 KPI
   document.getElementById('commissionKPI').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">🏠 房費總額</div><div class="kpi-value">${Math.round(totalPrice).toLocaleString()}</div><div class="kpi-sub">TWD（售價合計）</div></div>
-    <div class="kpi-card"><div class="kpi-label">💰 預收總額</div><div class="kpi-value">${Math.round(totalDeposit).toLocaleString()}</div><div class="kpi-sub">TWD（已收訂金）</div></div>
-    <div class="kpi-card"><div class="kpi-label">✅ 已收</div><div class="kpi-value profit">${Math.round(totalDeposit).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
-    <div class="kpi-card"><div class="kpi-label">📌 未收</div><div class="kpi-value ${totalUnpaid>0?'loss':''}">${Math.round(totalUnpaid).toLocaleString()}</div><div class="kpi-sub">TWD（待收款）</div></div>`;
+    <div class="kpi-card"><div class="kpi-label">🏠 房費總額</div><div class="kpi-value">${Math.round(totalCostTWD).toLocaleString()}</div><div class="kpi-sub">TWD（成本HKD×匯率合計）</div></div>
+    <div class="kpi-card" style="cursor:pointer;" onclick="showCollected()"><div class="kpi-label">💰 已收</div><div class="kpi-value profit">${Math.round(totalDeposit).toLocaleString()}</div><div class="kpi-sub">TWD 👆點擊查看明細</div></div>
+    <div class="kpi-card"><div class="kpi-label">📌 未收</div><div class="kpi-value ${totalUnpaid>0?'loss':''}">${Math.round(totalUnpaid).toLocaleString()}</div><div class="kpi-sub">TWD（總售價−已收）</div></div>
+    <div class="kpi-card"><div class="kpi-label">📊 總利潤</div><div class="kpi-value profit">${Math.round(totalP).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
 
-  // 分潤 KPI
+  // 個人分潤
   document.getElementById('commissionPersonKPI').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">📊 總利潤</div><div class="kpi-value profit">${Math.round(totalP).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
     <div class="kpi-card"><div class="kpi-label">🧑 Alen</div><div class="kpi-value profit">${totalAlen.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
     <div class="kpi-card"><div class="kpi-label">🧑 大飛</div><div class="kpi-value profit">${totalFei.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
-    <div class="kpi-card"><div class="kpi-label">🧑 三交</div><div class="kpi-value profit">${totalSan.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
+    <div class="kpi-card"><div class="kpi-label">🧑 三交</div><div class="kpi-value profit">${totalSan.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
+    <div class="kpi-card"><div class="kpi-label">📈 合計</div><div class="kpi-value profit">${(totalAlen+totalFei+totalSan).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
+}
+
+function showCollected() {
+  const bookings = getBookings().filter(b => (b.deposit||0) > 0);
+  if (bookings.length === 0) { showToast('尚無已收預訂', 'error'); return; }
+  const list = bookings.map(b => {
+    const unpaid = Math.round((b.price||0) - (b.deposit||0));
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border);">
+      <strong>${b.hotel}</strong> · ${b.checkIn}${b.nights? ' → '+b.checkOut:' '}(${b.nights}晚)<br>
+      <span style="font-size:12px;color:var(--text-light);">售價 ${Math.round(b.price||0).toLocaleString()} | 預收 ${Math.round(b.deposit||0).toLocaleString()} | 未收 ${unpaid.toLocaleString()} | 🧑${b.depositCollector||'—'}</span>
+    </div>`;
+  }).join('');
+  openModal(`<h3>💰 已收預訂明細（${bookings.length}筆）</h3>${list}<div style="margin-top:12px;"><button class="btn btn-ghost btn-full" onclick="closeModal()">關閉</button></div>`);
 }
 
 // ==================== 初始化 ====================
