@@ -1204,7 +1204,11 @@ function getCommissionRates(agent) {
 }
 function renderCommission() {
   const bookings = getBookings();
-  // 依代理統計
+  const totalPrice = bookings.reduce((s,b) => s + (b.price||0), 0);
+  const totalDeposit = bookings.reduce((s,b) => s + (b.deposit||0), 0);
+  const totalUnpaid = totalPrice - totalDeposit;
+
+  // 代理分潤統計
   const agentStats = {};
   bookings.forEach(b => {
     const a = b.agent || '其他';
@@ -1213,7 +1217,6 @@ function renderCommission() {
     agentStats[a].profit += b.profit || 0;
   });
 
-  // 分潤計算
   let totalAlen=0, totalFei=0, totalSan=0, totalP=0, totalC=0;
   const tableHtml = Object.entries(agentStats).map(([a,s]) => {
     const rates = getCommissionRates(a);
@@ -1222,24 +1225,24 @@ function renderCommission() {
     const san = Math.round(s.profit * (rates['三交']||0)/100);
     totalAlen += alen; totalFei += fei; totalSan += san;
     totalP += s.profit; totalC += s.count;
-    const rateStr = Object.entries(rates).map(([k,v])=>k+v+'%').join('/') || '—';
     return `<tr><td><strong>${a}</strong></td><td>${s.count}</td><td>${Math.round(s.profit).toLocaleString()}</td><td>${alen.toLocaleString()}</td><td>${fei.toLocaleString()}</td><td>${san.toLocaleString()}</td></tr>`;
   }).join('');
 
   document.getElementById('commissionTableBody').innerHTML = tableHtml || '<tr><td colspan="6" class="empty-state">尚無預訂記錄</td></tr>';
 
-  // KPI
+  // 收款概覽 KPI
   document.getElementById('commissionKPI').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">📋 訂單數</div><div class="kpi-value">${totalC}</div></div>
-    <div class="kpi-card"><div class="kpi-label">💰 總利潤</div><div class="kpi-value profit">${totalP.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
-    <div class="kpi-card"><div class="kpi-label">🔄 已分潤</div><div class="kpi-value profit">${(totalAlen+totalFei+totalSan).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
-    <div class="kpi-card"><div class="kpi-label">📊 未分</div><div class="kpi-value">${(totalP-totalAlen-totalFei-totalSan).toLocaleString()}</div><div class="kpi-sub">TWD（無分潤代理）</div></div>`;
+    <div class="kpi-card"><div class="kpi-label">🏠 房費總額</div><div class="kpi-value">${Math.round(totalPrice).toLocaleString()}</div><div class="kpi-sub">TWD（售價合計）</div></div>
+    <div class="kpi-card"><div class="kpi-label">💰 預收總額</div><div class="kpi-value">${Math.round(totalDeposit).toLocaleString()}</div><div class="kpi-sub">TWD（已收訂金）</div></div>
+    <div class="kpi-card"><div class="kpi-label">✅ 已收</div><div class="kpi-value profit">${Math.round(totalDeposit).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
+    <div class="kpi-card"><div class="kpi-label">📌 未收</div><div class="kpi-value ${totalUnpaid>0?'loss':''}">${Math.round(totalUnpaid).toLocaleString()}</div><div class="kpi-sub">TWD（待收款）</div></div>`;
 
+  // 分潤 KPI
   document.getElementById('commissionPersonKPI').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">📊 總利潤</div><div class="kpi-value profit">${Math.round(totalP).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
     <div class="kpi-card"><div class="kpi-label">🧑 Alen</div><div class="kpi-value profit">${totalAlen.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
     <div class="kpi-card"><div class="kpi-label">🧑 大飛</div><div class="kpi-value profit">${totalFei.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
-    <div class="kpi-card"><div class="kpi-label">🧑 三交</div><div class="kpi-value profit">${totalSan.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
-    <div class="kpi-card"><div class="kpi-label">📈 合計</div><div class="kpi-value profit">${(totalAlen+totalFei+totalSan).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
+    <div class="kpi-card"><div class="kpi-label">🧑 三交</div><div class="kpi-value profit">${totalSan.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
 }
 
 // ==================== 初始化 ====================
