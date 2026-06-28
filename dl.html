@@ -573,15 +573,15 @@ function openAddModal() {
       <div class="form-group"><label class="form-label">晚數／人數</label><input type="number" class="form-input" id="mNights" min="1" placeholder="1" value="" onchange="calcFromNights()"></div>
     </div>
     <div class="form-group"><label class="form-label">間數</label><input type="number" class="form-input" id="mRooms" min="1" placeholder="1" value="1" onchange="calcAll()"></div>
-    <div class="form-group"><label class="form-label">退房日期 <span class="auto-badge">自動</span></label>
+    <div class="form-group" id="rowCheckOut"><label class="form-label">退房日期 <span class="auto-badge">自動</span></label>
       <input class="form-input" id="mCheckOut" readonly style="background:#f9fafb;">
     </div>
     <div class="form-row-3">
       <div class="form-group"><label class="form-label" id="mCostLabel">成本 HKD</label><input type="number" class="form-input" id="mCostHKD" step="0.01" readonly style="background:#f9fafb;"></div>
       <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${s.defaultRate}" onchange="calcAll()"></div>
-      <div class="form-group"><label class="form-label">成本 TWD <span class="auto-badge" id="mCostTWDHint">=HKD×匯率</span></label><input type="number" class="form-input" id="mCostTWD" step="0.01" readonly style="background:#f9fafb;"></div>
+      <div class="form-group" id="rowCostTWD"><label class="form-label">成本 TWD <span class="auto-badge" id="mCostTWDHint">=HKD×匯率</span></label><input type="number" class="form-input" id="mCostTWD" step="0.01" readonly style="background:#f9fafb;"></div>
     </div>
-    <div class="form-row-3">
+    <div class="form-row-3" id="rowPrice">
       <div class="form-group"><label class="form-label">售價 HKD</label><input type="number" class="form-input" id="mPriceHKD" step="0.01" placeholder="0" onchange="onPriceHKDChange()"></div>
       <div class="form-group" style="display:flex;align-items:center;justify-content:center;padding-top:20px;"><span style="font-size:18px;">↔</span></div>
       <div class="form-group"><label class="form-label">售價 TWD</label><input type="number" class="form-input" id="mPriceTWD" step="0.01" placeholder="0" onchange="onPriceTWDChange()"></div>
@@ -627,15 +627,15 @@ function openEditModal(booking) {
       <div class="form-group"><label class="form-label">晚數／人數</label><input type="number" class="form-input" id="mNights" min="1" value="${booking.nights}" onchange="calcFromNights()"></div>
     </div>
     <div class="form-group"><label class="form-label">間數</label><input type="number" class="form-input" id="mRooms" min="1" value="${booking.rooms||1}" onchange="calcAll()"></div>
-    <div class="form-group"><label class="form-label">退房日期 <span class="auto-badge">自動</span></label>
+    <div class="form-group" id="rowCheckOut"><label class="form-label">退房日期 <span class="auto-badge">自動</span></label>
       <input class="form-input" id="mCheckOut" value="${booking.checkOut}" readonly style="background:#f9fafb;">
     </div>
     <div class="form-row-3">
       <div class="form-group"><label class="form-label" id="mCostLabel">成本 HKD</label><input type="number" class="form-input" id="mCostHKD" step="0.01" value="${booking.cost}" onchange="calcAll()"></div>
       <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${booking.rate}" onchange="calcAll()"></div>
-      <div class="form-group"><label class="form-label">成本 TWD <span class="auto-badge" id="mCostTWDHint">=HKD×匯率</span></label><input type="number" class="form-input" id="mCostTWD" step="0.01" readonly style="background:#f9fafb;"></div>
+      <div class="form-group" id="rowCostTWD"><label class="form-label">成本 TWD <span class="auto-badge" id="mCostTWDHint">=HKD×匯率</span></label><input type="number" class="form-input" id="mCostTWD" step="0.01" readonly style="background:#f9fafb;"></div>
     </div>
-    <div class="form-row-3">
+    <div class="form-row-3" id="rowPrice">
       <div class="form-group"><label class="form-label">售價 HKD</label><input type="number" class="form-input" id="mPriceHKD" step="0.01" value="${booking.priceHKD||''}" placeholder="0" onchange="onPriceHKDChange()"></div>
       <div class="form-group" style="display:flex;align-items:center;justify-content:center;padding-top:20px;"><span style="font-size:18px;">↔</span></div>
       <div class="form-group"><label class="form-label">售價 TWD</label><input type="number" class="form-input" id="mPriceTWD" step="0.01" value="${booking.price}" placeholder="0" onchange="onPriceTWDChange()"></div>
@@ -656,10 +656,8 @@ function openEditModal(booking) {
       <button class="btn btn-primary btn-full" onclick="saveBooking()">💾 更新</button>
     </div>
   `);
+  setTimeout(() => onHotelChange(), 50);
 }
-
-// Modal 內計算
-function onHotelChange() {
   const hotel = document.getElementById('mHotel')?.value;
   const rooms = ROOM_DB[hotel] || [];
   const mRoomType = document.getElementById('mRoomType');
@@ -697,8 +695,22 @@ function onHotelChange() {
     // 預設1間（晚數由用戶手填）
     const mRooms = document.getElementById('mRooms');
     if (mRooms && !mRooms.value) mRooms.value = '1';
-    // 延遲觸發計算（等DOM更新）
+    // 隱藏無關欄位
+    ['rowCheckOut','rowPrice','rowCostTWD'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = 'none';
+    });
+    // 利潤標籤改為 =收入×匯率
+    const profitLabel = document.querySelector('#mProfit').previousElementSibling;
+    if (profitLabel) profitLabel.innerHTML = '利潤 TWD <span class="auto-badge">=收入MOP×匯率</span>';
+    // 延遲觸發計算
     setTimeout(() => { calcFromCheckIn(); calcAll(); }, 100);
+  } else {
+    // 恢復顯示
+    ['rowCheckOut','rowPrice','rowCostTWD'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = '';
+    });
+    const profitLabel = document.querySelector('#mProfit')?.previousElementSibling;
+    if (profitLabel) profitLabel.innerHTML = '利潤 TWD <span class="auto-badge">=售價TWD−成本TWD</span>';
   }
   if (rooms.length === 0) {
     mRoomType.innerHTML = '<option value="">（無預設房型）</option>';
@@ -762,32 +774,49 @@ function calcFromNights() {
   calcAll();
 }
 function calcAll() {
+  const hotel = document.getElementById('mHotel')?.value;
   const costHKD = parseFloat(document.getElementById('mCostHKD')?.value) || 0;
   const rooms = parseInt(document.getElementById('mRooms')?.value) || 1;
-  const totalCost = costHKD * rooms;
   const rate = parseFloat(document.getElementById('mRate')?.value) || 4.1;
+
+  // 探險：收入 = 300 × 人數 × 間數，利潤 = 收入 × 匯率（成本=0）
+  if (hotel === '探險') {
+    const nights = parseInt(document.getElementById('mNights')?.value) || 0;
+    const incomeMOP = 300 * nights * rooms;
+    const profit = Math.round(incomeMOP * rate);
+    const elP = document.getElementById('mProfit');
+    if (elP) { elP.value = profit; elP.style.color = profit>=0?'var(--success)':'var(--danger)'; }
+    const hint = document.getElementById('mCalcHint');
+    if (hint) hint.innerHTML = `💰 ${nights}人 × 300 MOP × ${rooms}間 = <strong>${incomeMOP.toLocaleString()} MOP</strong> → 利潤 <strong>${profit.toLocaleString()} TWD</strong>`;
+    // 同時更新隐藏的售價欄位（儲存用）
+    const elPHD = document.getElementById('mPriceHKD');
+    const elPTD = document.getElementById('mPriceTWD');
+    if (elPHD) elPHD.value = incomeMOP;
+    if (elPTD) elPTD.value = profit;
+    // 成本TWD=0
+    const elCT = document.getElementById('mCostTWD');
+    if (elCT) elCT.value = '0';
+    // 未收款
+    const deposit = parseFloat(document.getElementById('mDeposit')?.value) || 0;
+    const elUP = document.getElementById('mUnpaid');
+    if (elUP) elUP.value = Math.round(profit - deposit);
+    return;
+  }
+
+  // === 一般酒店計算 ===
+  const totalCost = costHKD * rooms;
   const costTWD = Math.round(totalCost * rate * 100) / 100;
   const elCT = document.getElementById('mCostTWD');
   if (elCT) elCT.value = Math.round(costTWD);
 
-  // 探險：售價自動填入 300 MOP × 人數 × 間數（成本=0，利潤=售價）
-  // 其他酒店：售價空白時自動填成本TWD（利潤=0）
-  const hotel = document.getElementById('mHotel')?.value;
+  // 售價空白時自動填成本TWD
   const elPHD = document.getElementById('mPriceHKD');
   const elPTD = document.getElementById('mPriceTWD');
-  if (elPTD && elPHD) {
+  if (elPTD && elPHD && totalCost > 0) {
     const phd = parseFloat(elPHD.value);
     const ptd = parseFloat(elPTD.value);
     if ((isNaN(phd)||phd===0) && (isNaN(ptd)||ptd===0)) {
-      if (hotel === '探險') {
-        const nights = parseInt(document.getElementById('mNights')?.value) || 1;
-        const roomsForPrice = parseInt(document.getElementById('mRooms')?.value) || 1;
-        const suggestMOP = 300 * nights * roomsForPrice;
-        elPHD.value = suggestMOP;
-        elPTD.value = Math.round(suggestMOP * rate);
-      } else if (totalCost > 0) {
-        elPTD.value = Math.round(costTWD);
-      }
+      elPTD.value = Math.round(costTWD);
     }
   }
 
@@ -832,21 +861,25 @@ function saveBooking() {
   const agent = document.getElementById('mAgent').value.trim();
 
   if (!checkIn) { showToast('請選擇入住日期', 'error'); return; }
+  // 探險無退房日期，自動設為同一天
+  if (!checkOut && hotel === '探險') {
+    document.getElementById('mCheckOut').value = checkIn;
+  }
   if (!checkOut) { showToast('請輸入晚數以自動計算退房日期', 'error'); return; }
   if (!hotel) { showToast('請選擇酒店', 'error'); return; }
 
   const d1 = new Date(checkIn), d2 = new Date(checkOut);
   const nights = Math.max(0, Math.round((d2 - d1) / 86400000));
 
-  if (nights === 0) { showToast('退房日期必須晚於入住日期', 'error'); return; }
+  if (nights === 0 && hotel !== '探險') { showToast('退房日期必須晚於入住日期', 'error'); return; }
 
   const costHKD = parseFloat(document.getElementById('mCostHKD').value) || 0;
   const rooms = parseInt(document.getElementById('mRooms')?.value) || 1;
   const rate = parseFloat(document.getElementById('mRate').value) || 4.1;
-  const costTWD = Math.round(costHKD * rooms * rate);
+  const costTWD = (hotel === '探險') ? 0 : Math.round(costHKD * rooms * rate);
   const priceHKD = parseFloat(document.getElementById('mPriceHKD').value) || 0;
   const priceTWD = parseFloat(document.getElementById('mPriceTWD').value) || 0;
-  const profit = Math.round(priceTWD - costTWD);
+  const profit = (hotel === '探險') ? Math.round(priceTWD) : Math.round(priceTWD - costTWD);
 
   const booking = {
     id: editingId || Date.now().toString(36) + Math.random().toString(36).slice(2,6),
