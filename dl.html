@@ -251,7 +251,7 @@ tr:active { background: #fafbfc; }
       <div class="card-header"><h2>📋 分潤總表</h2></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>代理</th><th style="text-align:center;">訂單數</th><th style="text-align:right;">總利潤(TWD)</th><th style="text-align:right;">預收金額</th><th style="text-align:right;">Alen分潤</th><th style="text-align:right;">大飛分潤</th><th style="text-align:right;">三交分潤</th></tr></thead>
+          <thead><tr><th>代理</th><th style="text-align:center;">訂單數</th><th style="text-align:right;">支出房費</th><th style="text-align:right;">總利潤(TWD)</th><th style="text-align:right;">預收金額</th><th style="text-align:right;">Alen分潤</th><th style="text-align:right;">大飛分潤</th><th style="text-align:right;">三交分潤</th></tr></thead>
           <tbody id="commissionTableBody"></tbody>
         </table>
       </div>
@@ -1223,10 +1223,11 @@ function renderCommission() {
   const agentStats = {};
   bookings.forEach(b => {
     const a = (b.agent||'').trim() || '其他';
-    if (!agentStats[a]) agentStats[a] = { count:0, profit:0, deposit:0, depositByCollector:{} };
+    if (!agentStats[a]) agentStats[a] = { count:0, profit:0, deposit:0, costTWD:0, depositByCollector:{} };
     agentStats[a].count++;
     agentStats[a].profit += b.profit || 0;
     agentStats[a].deposit += b.deposit || 0;
+    agentStats[a].costTWD += (b.costTWD || b.cost*b.rate || 0);
     const collector = (b.depositCollector||'').trim() || '—';
     agentStats[a].depositByCollector[collector] = (agentStats[a].depositByCollector[collector]||0) + (b.deposit||0);
   });
@@ -1243,12 +1244,24 @@ function renderCommission() {
       .map(([c,amt]) => `<span style="display:inline-block;background:var(--bg);padding:3px 8px;border-radius:12px;margin:2px 0;font-size:12px;"><strong style="color:var(--primary);">${c}</strong> <span style="color:var(--text);">${Math.round(amt).toLocaleString()}</span></span>`)
       .join(' ');
     const depositDisplay = depositParts || '<span style="color:var(--text-light);">—</span>';
+
+    // 支出房費顯示（成本TWD + 已付/未付）
+    const cost = Math.round(stat.costTWD);
+    const paid = Math.round(stat.deposit);
+    const unpaidCost = cost - paid;
+    const costDisplay = `<div style="font-weight:700;">${cost.toLocaleString()}</div>
+      <div style="font-size:11px;margin-top:2px;">
+        <span style="color:var(--success);">已付 ${paid.toLocaleString()}</span>
+        <span style="margin:0 4px;color:var(--border);">|</span>
+        <span style="color:${unpaidCost>0?'var(--danger)':'var(--text-light)'};">未付 ${unpaidCost.toLocaleString()}</span>
+      </div>
+      <button class="btn btn-xs btn-ghost" style="margin-top:4px;font-size:10px;" onclick="event.stopPropagation();showAgentPaidDetail('${a}')">📋 明細</button>`;
     totalAlen += alen; totalFei += fei; totalSan += san;
     totalP += stat.profit;
-    return `<tr><td><strong>${a}</strong></td><td style="text-align:center;">${stat.count}</td><td style="text-align:right;">${Math.round(stat.profit).toLocaleString()}</td><td style="text-align:right;">${depositDisplay}</td><td style="text-align:right;">${alen.toLocaleString()}</td><td style="text-align:right;">${fei.toLocaleString()}</td><td style="text-align:right;">${san.toLocaleString()}</td></tr>`;
+    return `<tr><td><strong>${a}</strong></td><td style="text-align:center;">${stat.count}</td><td style="text-align:right;">${costDisplay}</td><td style="text-align:right;">${Math.round(stat.profit).toLocaleString()}</td><td style="text-align:right;">${depositDisplay}</td><td style="text-align:right;">${alen.toLocaleString()}</td><td style="text-align:right;">${fei.toLocaleString()}</td><td style="text-align:right;">${san.toLocaleString()}</td></tr>`;
   }).join('');
 
-  document.getElementById('commissionTableBody').innerHTML = tableHtml || '<tr><td colspan="7" class="empty-state">尚無預訂記錄</td></tr>';
+  document.getElementById('commissionTableBody').innerHTML = tableHtml || '<tr><td colspan="8" class="empty-state">尚無預訂記錄</td></tr>';
 
   // 收款概覽 KPI
   document.getElementById('commissionKPI').innerHTML = `
@@ -1270,6 +1283,29 @@ function renderCommission() {
     <div class="kpi-card"><div class="kpi-label">🧑 大飛</div><div class="kpi-value profit">${totalFei.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('大飛')">💰 已給 ${paidFei.toLocaleString()}</span>　<span style="color:${unpaidFei>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidFei.toLocaleString()}</span></div></div>
     <div class="kpi-card"><div class="kpi-label">🧑 三交</div><div class="kpi-value profit">${totalSan.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('三交')">💰 已給 ${paidSan.toLocaleString()}</span>　<span style="color:${unpaidSan>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidSan.toLocaleString()}</span></div></div>
     <div class="kpi-card"><div class="kpi-label">📈 合計分潤</div><div class="kpi-value profit">${(totalAlen+totalFei+totalSan).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
+}
+
+function showAgentPaidDetail(agent) {
+  const bookings = getBookings().filter(b => (b.agent||'').trim() === agent);
+  if (bookings.length === 0) { showToast('該代理尚無預訂', 'error'); return; }
+  const list = bookings.map(b => {
+    const costTWD = Math.round(b.costTWD || b.cost*b.rate || 0);
+    const unpaid = costTWD - (b.deposit||0);
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border);">
+      <strong>${b.hotel}</strong> · ${b.roomType||'—'}<br>
+      <span style="font-size:12px;color:var(--text-light);">
+        ${b.checkIn} → ${b.checkOut} (${b.nights}晚) | 房費 ${costTWD.toLocaleString()} | 
+        已付 ${Math.round(b.deposit||0).toLocaleString()} | 
+        <span style="color:${unpaid>0?'var(--danger)':'var(--success)'};">未付 ${unpaid.toLocaleString()}</span>
+      </span>
+    </div>`;
+  }).join('');
+  const totalCost = Math.round(bookings.reduce((s,b)=>s+(b.costTWD||b.cost*b.rate||0),0));
+  const totalPaid = Math.round(bookings.reduce((s,b)=>s+(b.deposit||0),0));
+  openModal(`<h3>📋 ${agent} · 支出明細</h3>
+    <div style="margin-bottom:10px;font-size:13px;">房費 ${totalCost.toLocaleString()} | 已付 ${totalPaid.toLocaleString()} | 未付 ${(totalCost-totalPaid).toLocaleString()}</div>
+    ${list}
+    <div style="margin-top:12px;"><button class="btn btn-ghost btn-full" onclick="closeModal()">關閉</button></div>`);
 }
 
 function showPaid() {
