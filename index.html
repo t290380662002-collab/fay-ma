@@ -470,9 +470,9 @@ function saveBookings(data) {
 function getSettings() {
   try {
     const d = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    return { defaultRate: d.defaultRate || 4.1, agents: d.agents || [...DEFAULT_AGENTS], customRoomFee: d.customRoomFee, customPaid: d.customPaid, customUnpaid: d.customUnpaid };
+    return { defaultRate: d.defaultRate || 4.1, agents: d.agents || [...DEFAULT_AGENTS], customRoomFee: d.customRoomFee, customPaid: d.customPaid, customUnpaid: d.customUnpaid, paidAlen: d.paidAlen, paidFei: d.paidFei, paidSan: d.paidSan };
   } catch(e) {
-    return { defaultRate: 4.1, agents: [...DEFAULT_AGENTS], customRoomFee: null, customPaid: null, customUnpaid: null };
+    return { defaultRate: 4.1, agents: [...DEFAULT_AGENTS], customRoomFee: null, customPaid: null, customUnpaid: null, paidAlen: null, paidFei: null, paidSan: null };
   }
 }
 function saveSettingsObj(obj) {
@@ -1248,12 +1248,19 @@ function renderCommission() {
     <div class="kpi-card" style="cursor:pointer;" onclick="editUnpaid()"><div class="kpi-label">📌 未收</div><div class="kpi-value ${unpaid>0?'loss':''}">${unpaid.toLocaleString()}</div><div class="kpi-sub">TWD（點擊修改）</div></div>
     <div class="kpi-card"><div class="kpi-label">📊 總利潤</div><div class="kpi-value profit">${Math.round(totalP).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
 
-  // 個人分潤
+  // 個人分潤（含已給/未給追蹤）
+  const paidAlen = (s.paidAlen != null) ? s.paidAlen : 0;
+  const paidFei = (s.paidFei != null) ? s.paidFei : 0;
+  const paidSan = (s.paidSan != null) ? s.paidSan : 0;
+  const unpaidAlen = totalAlen - paidAlen;
+  const unpaidFei = totalFei - paidFei;
+  const unpaidSan = totalSan - paidSan;
+
   document.getElementById('commissionPersonKPI').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">🧑 Alen</div><div class="kpi-value profit">${totalAlen.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
-    <div class="kpi-card"><div class="kpi-label">🧑 大飛</div><div class="kpi-value profit">${totalFei.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
-    <div class="kpi-card"><div class="kpi-label">🧑 三交</div><div class="kpi-value profit">${totalSan.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
-    <div class="kpi-card"><div class="kpi-label">📈 合計</div><div class="kpi-value profit">${(totalAlen+totalFei+totalSan).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
+    <div class="kpi-card"><div class="kpi-label">🧑 Alen</div><div class="kpi-value profit">${totalAlen.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('Alen')">💰 已給 ${paidAlen.toLocaleString()}</span>　<span style="color:${unpaidAlen>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidAlen.toLocaleString()}</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">🧑 大飛</div><div class="kpi-value profit">${totalFei.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('大飛')">💰 已給 ${paidFei.toLocaleString()}</span>　<span style="color:${unpaidFei>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidFei.toLocaleString()}</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">🧑 三交</div><div class="kpi-value profit">${totalSan.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('三交')">💰 已給 ${paidSan.toLocaleString()}</span>　<span style="color:${unpaidSan>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidSan.toLocaleString()}</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">📈 合計分潤</div><div class="kpi-value profit">${(totalAlen+totalFei+totalSan).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
 }
 
 function showPaid() {
@@ -1324,6 +1331,24 @@ function editUnpaid() {
   saveSettingsObj(s);
   renderCommission();
   showToast('未收金額已更新', 'success');
+}
+
+function editPaidTo(person) {
+  const s = getSettings();
+  const key = person === 'Alen' ? 'paidAlen' : person === '大飛' ? 'paidFei' : 'paidSan';
+  const current = (s[key] != null) ? s[key] : 0;
+  const input = prompt(`請輸入已給 ${person} 金額（TWD），留空歸零：`, current);
+  if (input === null) return;
+  if (input.trim() === '') {
+    s[key] = 0;
+  } else {
+    const v = parseInt(input, 10);
+    if (isNaN(v) || v < 0) { showToast('請輸入有效數字', 'error'); return; }
+    s[key] = v;
+  }
+  saveSettingsObj(s);
+  renderCommission();
+  showToast(`已給 ${person} 已更新`, 'success');
 }
 
 // ==================== 初始化 ====================
