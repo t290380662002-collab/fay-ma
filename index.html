@@ -350,7 +350,8 @@ tr:active { background: #fafbfc; }
 
 <script>
 // ==================== 數據模型 ====================
-const HOTELS = ['名匯','御園','倫敦人','威尼斯人','巴黎人','頤居','摩珀斯','巨星匯','映星匯','明星匯','君悅嘉賓軒','君悅'];
+const HOTELS = ['名匯','御園','倫敦人','威尼斯人','巴黎人','頤居','摩珀斯','巨星匯','映星匯','明星匯','君悅嘉賓軒','君悅','探險'];
+const HOTEL_RATES = { '探險': 3.9 };  // MOP→TWD，其餘預設 HKD→TWD 4.1
 const DEFAULT_AGENTS = ['直客','攜程','美團','飛豬','Booking','Agoda','Klook','KKday','三交','大飛'];
 const STORAGE_KEY = 'macau_hotel_bookings';
 const SETTINGS_KEY = 'macau_hotel_settings';
@@ -417,6 +418,9 @@ const ROOM_DB = {
     { name:'客房(雙床)', code:'TWIN', weekday:500, weekend:800, holiday:1100 },
     { name:'君悅客房', code:'GRSK', weekday:800, weekend:1100, holiday:1400 },
     { name:'君悅套房', code:'GRST', weekday:800, weekend:1100, holiday:1400 }
+  ],
+  '探險': [
+    { name:'標準房', code:'STD', weekday:300, weekend:300, holiday:300 }
   ]
 };
 
@@ -572,9 +576,9 @@ function openAddModal() {
       <input class="form-input" id="mCheckOut" readonly style="background:#f9fafb;">
     </div>
     <div class="form-row-3">
-      <div class="form-group"><label class="form-label">成本 HKD</label><input type="number" class="form-input" id="mCostHKD" step="0.01" readonly style="background:#f9fafb;"></div>
+      <div class="form-group"><label class="form-label" id="mCostLabel">成本 HKD</label><input type="number" class="form-input" id="mCostHKD" step="0.01" readonly style="background:#f9fafb;"></div>
       <div class="form-group"><label class="form-label">匯率</label><input type="number" class="form-input" id="mRate" step="0.001" value="${s.defaultRate}" onchange="calcAll()"></div>
-      <div class="form-group"><label class="form-label">成本 TWD <span class="auto-badge">=HKD×匯率</span></label><input type="number" class="form-input" id="mCostTWD" step="0.01" readonly style="background:#f9fafb;"></div>
+      <div class="form-group"><label class="form-label">成本 TWD <span class="auto-badge" id="mCostTWDHint">=HKD×匯率</span></label><input type="number" class="form-input" id="mCostTWD" step="0.01" readonly style="background:#f9fafb;"></div>
     </div>
     <div class="form-row-3">
       <div class="form-group"><label class="form-label">售價 HKD</label><input type="number" class="form-input" id="mPriceHKD" step="0.01" placeholder="0" onchange="onPriceHKDChange()"></div>
@@ -658,12 +662,28 @@ function onHotelChange() {
   const rooms = ROOM_DB[hotel] || [];
   const mRoomType = document.getElementById('mRoomType');
   if (!mRoomType) return;
+  // 根據酒店自動設定匯率（如探險 MOP 3.9）
+  const mRate = document.getElementById('mRate');
+  if (mRate && HOTEL_RATES[hotel]) {
+    mRate.value = HOTEL_RATES[hotel];
+  }
+  // 更新成本標籤（MOP vs HKD）
+  const mCostLabel = document.getElementById('mCostLabel');
+  if (mCostLabel) {
+    mCostLabel.textContent = HOTEL_RATES[hotel] ? '成本 MOP' : '成本 HKD';
+  }
+  // 更新TWD成本提示
+  const hint = document.getElementById('mCostTWDHint');
+  if (hint) {
+    hint.textContent = HOTEL_RATES[hotel] ? '=MOP×匯率' : '=HKD×匯率';
+  }
   if (rooms.length === 0) {
     mRoomType.innerHTML = '<option value="">（無預設房型）</option>';
     return;
   }
+  const currency = HOTEL_RATES[hotel] ? 'MOP' : 'HKD';
   mRoomType.innerHTML = rooms.map(r =>
-    `<option value="${r.name}">${r.name} · ${r.code} · ${r.weekday}/${r.weekend}/${r.holiday} HKD</option>`
+    `<option value="${r.name}">${r.name} · ${r.code} · ${r.weekday}/${r.weekend}/${r.holiday} ${currency}</option>`
   ).join('');
   onRoomTypeChange();
 }
@@ -1201,9 +1221,12 @@ function renderAll() {
 }
 
 // ==================== 分潤 ====================
-function getCommissionRates(agent) {
+function getCommissionRates(agent, hotel) {
   const a = (agent||'').trim();
-  if (a === '三交') return {Alen:35, 大飛:35, 三交:30};
+  if (a === '三交') {
+    if (hotel === '探險') return {Alen:30, 大飛:30, 三交:40};
+    return {Alen:35, 大飛:35, 三交:30};
+  }
   if (a === '大飛' || a === '飛') return {Alen:50, 大飛:50};
   return {};
 }
@@ -1223,21 +1246,25 @@ function renderCommission() {
   const agentStats = {};
   bookings.forEach(b => {
     const a = (b.agent||'').trim() || '其他';
-    if (!agentStats[a]) agentStats[a] = { count:0, profit:0, deposit:0, costTWD:0, depositByCollector:{} };
+    if (!agentStats[a]) agentStats[a] = { count:0, profit:0, deposit:0, costTWD:0, depositByCollector:{}, alenTotal:0, feiTotal:0, sanTotal:0 };
     agentStats[a].count++;
     agentStats[a].profit += b.profit || 0;
     agentStats[a].deposit += b.deposit || 0;
     agentStats[a].costTWD += (b.costTWD || b.cost*b.rate || 0);
+    // 依預訂逐筆計算分潤（支援同代理不同酒店不同比例）
+    const rates = getCommissionRates(b.agent, b.hotel);
+    agentStats[a].alenTotal += Math.round((b.profit||0) * (rates.Alen||0)/100);
+    agentStats[a].feiTotal += Math.round((b.profit||0) * (rates['大飛']||0)/100);
+    agentStats[a].sanTotal += Math.round((b.profit||0) * (rates['三交']||0)/100);
     const collector = (b.depositCollector||'').trim() || '—';
     agentStats[a].depositByCollector[collector] = (agentStats[a].depositByCollector[collector]||0) + (b.deposit||0);
   });
 
   let totalAlen=0, totalFei=0, totalSan=0, totalP=0;
   const tableHtml = Object.entries(agentStats).map(([a,stat]) => {
-    const rates = getCommissionRates(a);
-    const alen = Math.round(stat.profit * (rates.Alen||0)/100);
-    const fei = Math.round(stat.profit * (rates['大飛']||0)/100);
-    const san = Math.round(stat.profit * (rates['三交']||0)/100);
+    const alen = stat.alenTotal;
+    const fei = stat.feiTotal;
+    const san = stat.sanTotal;
     // 預收金額顯示（依收款人分列）
     const depositParts = Object.entries(stat.depositByCollector)
       .filter(([_,amt]) => amt > 0)
