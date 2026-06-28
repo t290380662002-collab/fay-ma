@@ -658,6 +658,9 @@ function openEditModal(booking) {
   `);
   setTimeout(() => onHotelChange(), 50);
 }
+
+// Modal 內計算
+function onHotelChange() {
   const hotel = document.getElementById('mHotel')?.value;
   const rooms = ROOM_DB[hotel] || [];
   const mRoomType = document.getElementById('mRoomType');
