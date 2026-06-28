@@ -470,9 +470,9 @@ function saveBookings(data) {
 function getSettings() {
   try {
     const d = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    return { defaultRate: d.defaultRate || 4.1, agents: d.agents || [...DEFAULT_AGENTS], customRoomFee: d.customRoomFee };
+    return { defaultRate: d.defaultRate || 4.1, agents: d.agents || [...DEFAULT_AGENTS], customRoomFee: d.customRoomFee, customPaid: d.customPaid, customUnpaid: d.customUnpaid };
   } catch(e) {
-    return { defaultRate: 4.1, agents: [...DEFAULT_AGENTS], customRoomFee: null };
+    return { defaultRate: 4.1, agents: [...DEFAULT_AGENTS], customRoomFee: null, customPaid: null, customUnpaid: null };
   }
 }
 function saveSettingsObj(obj) {
@@ -1214,7 +1214,8 @@ function renderCommission() {
   const totalCostTWD = bookings.reduce((s,b) => s + (b.costTWD||b.cost*b.rate||0), 0);
   const s = getSettings();
   const roomFee = (s.customRoomFee != null) ? s.customRoomFee : Math.round(totalPrice);
-  const totalUnpaid = roomFee - totalDeposit;
+  const paid = (s.customPaid != null) ? s.customPaid : Math.round(totalDeposit);
+  const unpaid = (s.customUnpaid != null) ? s.customUnpaid : Math.round(roomFee - paid);
   const collectedBookings = bookings.filter(b => (b.deposit||0) > 0);
   const uncollectedBookings = bookings.filter(b => !(b.deposit||0));
 
@@ -1227,15 +1228,12 @@ function renderCommission() {
     agentStats[a].profit += b.profit || 0;
   });
 
-  console.log('分潤: agentStats =', JSON.stringify(agentStats));
-
   let totalAlen=0, totalFei=0, totalSan=0, totalP=0;
   const tableHtml = Object.entries(agentStats).map(([a,stat]) => {
     const rates = getCommissionRates(a);
     const alen = Math.round(stat.profit * (rates.Alen||0)/100);
     const fei = Math.round(stat.profit * (rates['大飛']||0)/100);
     const san = Math.round(stat.profit * (rates['三交']||0)/100);
-    console.log(`分潤: agent=${a}, profit=${stat.profit}, rates=`, rates, `=> Alen=${alen}, 大飛=${fei}, 三交=${san}`);
     totalAlen += alen; totalFei += fei; totalSan += san;
     totalP += stat.profit;
     return `<tr><td><strong>${a}</strong></td><td>${stat.count}</td><td>${Math.round(stat.profit).toLocaleString()}</td><td>${alen.toLocaleString()}</td><td>${fei.toLocaleString()}</td><td>${san.toLocaleString()}</td></tr>`;
@@ -1246,8 +1244,8 @@ function renderCommission() {
   // 收款概覽 KPI
   document.getElementById('commissionKPI').innerHTML = `
     <div class="kpi-card" style="cursor:pointer;" onclick="editRoomFee()"><div class="kpi-label">🏠 房費總額</div><div class="kpi-value">${roomFee.toLocaleString()}</div><div class="kpi-sub">TWD（售價合計，點擊修改）</div></div>
-    <div class="kpi-card" style="cursor:pointer;" onclick="showPaid()"><div class="kpi-label">💰 已付</div><div class="kpi-value profit">${Math.round(totalDeposit).toLocaleString()}</div><div class="kpi-sub">TWD 👆點擊查看明細</div></div>
-    <div class="kpi-card"><div class="kpi-label">📌 未付</div><div class="kpi-value ${totalUnpaid>0?'loss':''}">${Math.round(totalUnpaid).toLocaleString()}</div><div class="kpi-sub">TWD（房費總額−已付）</div></div>
+    <div class="kpi-card" style="cursor:pointer;" onclick="editPaid()"><div class="kpi-label">💰 已收</div><div class="kpi-value profit">${paid.toLocaleString()}</div><div class="kpi-sub">TWD（點擊修改）</div></div>
+    <div class="kpi-card" style="cursor:pointer;" onclick="editUnpaid()"><div class="kpi-label">📌 未收</div><div class="kpi-value ${unpaid>0?'loss':''}">${unpaid.toLocaleString()}</div><div class="kpi-sub">TWD（點擊修改）</div></div>
     <div class="kpi-card"><div class="kpi-label">📊 總利潤</div><div class="kpi-value profit">${Math.round(totalP).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
 
   // 個人分潤
@@ -1288,6 +1286,44 @@ function editRoomFee() {
   saveSettingsObj(s);
   renderCommission();
   showToast('房費總額已更新', 'success');
+}
+
+function editPaid() {
+  const s = getSettings();
+  const bookings = getBookings();
+  const totalDeposit = bookings.reduce((sum,b) => sum + (b.deposit||0), 0);
+  const current = (s.customPaid != null) ? s.customPaid : Math.round(totalDeposit);
+  const input = prompt('請輸入已收金額（TWD），留空還原自動計算：', current);
+  if (input === null) return;
+  if (input.trim() === '') {
+    s.customPaid = null;
+  } else {
+    const v = parseInt(input, 10);
+    if (isNaN(v) || v < 0) { showToast('請輸入有效數字', 'error'); return; }
+    s.customPaid = v;
+  }
+  saveSettingsObj(s);
+  renderCommission();
+  showToast('已收金額已更新', 'success');
+}
+
+function editUnpaid() {
+  const s = getSettings();
+  const roomFee = (s.customRoomFee != null) ? s.customRoomFee : Math.round(getBookings().reduce((sum,b)=>sum+(b.price||0),0));
+  const paid = (s.customPaid != null) ? s.customPaid : Math.round(getBookings().reduce((sum,b)=>sum+(b.deposit||0),0));
+  const current = (s.customUnpaid != null) ? s.customUnpaid : Math.round(roomFee - paid);
+  const input = prompt('請輸入未收金額（TWD），留空還原自動計算：', current);
+  if (input === null) return;
+  if (input.trim() === '') {
+    s.customUnpaid = null;
+  } else {
+    const v = parseInt(input, 10);
+    if (isNaN(v) || v < 0) { showToast('請輸入有效數字', 'error'); return; }
+    s.customUnpaid = v;
+  }
+  saveSettingsObj(s);
+  renderCommission();
+  showToast('未收金額已更新', 'success');
 }
 
 // ==================== 初始化 ====================
