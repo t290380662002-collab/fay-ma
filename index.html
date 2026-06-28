@@ -223,8 +223,8 @@ tr:active { background: #fafbfc; }
         <table>
           <thead>
             <tr>
-              <th>酒店</th><th>房型</th><th>代理</th><th>入住</th><th>退房</th><th>晚</th>
-              <th>成本HKD</th><th>成本TWD</th><th>匯率</th><th>售價HKD</th><th>售價TWD</th><th>預收</th><th>利潤TWD</th><th></th>
+              <th></th><th>酒店</th><th>房型</th><th>代理</th><th>入住</th><th>退房</th><th>晚</th>
+              <th>成本HKD</th><th>成本TWD</th><th>匯率</th><th>售價HKD</th><th>售價TWD</th><th>預收</th><th>利潤TWD</th>
             </tr>
           </thead>
           <tbody id="bookingTableBody"></tbody>
@@ -857,6 +857,10 @@ function renderBookings() {
       const profitSign = b.profit > 0 ? '+' : '';
       tbody.innerHTML += `
         <tr>
+          <td style="min-width:60px;">
+            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openEditModalById('${b.id}')" style="margin-bottom:4px;">✏️</button>
+            <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteBooking('${b.id}')">🗑</button>
+          </td>
           <td><strong>${b.hotel}</strong></td>
           <td>${b.roomType||'-'}</td>
           <td>${b.agent||'-'}</td>
@@ -870,10 +874,6 @@ function renderBookings() {
           <td>${Math.round(b.price).toLocaleString()}</td>
           <td>${Math.round(b.deposit||0).toLocaleString()}</td>
           <td class="${profitClass}">${profitSign}${Math.round(b.profit).toLocaleString()}</td>
-          <td>
-            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openEditModalById('${b.id}')">✏️</button>
-            <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteBooking('${b.id}')">🗑</button>
-          </td>
         </tr>
       `;
     });
