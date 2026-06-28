@@ -224,7 +224,7 @@ tr:active { background: #fafbfc; }
           <thead>
             <tr>
               <th>酒店</th><th>房型</th><th>代理</th><th>入住</th><th>退房</th><th>晚</th>
-              <th>成本HKD</th><th>成本TWD</th><th>匯率</th><th>售價HKD</th><th>售價TWD</th><th>利潤TWD</th><th></th>
+              <th>成本HKD</th><th>成本TWD</th><th>匯率</th><th>售價HKD</th><th>售價TWD</th><th>預收</th><th>利潤TWD</th><th></th>
             </tr>
           </thead>
           <tbody id="bookingTableBody"></tbody>
@@ -235,6 +235,27 @@ tr:active { background: #fafbfc; }
         <div>尚無預訂記錄</div>
         <div style="font-size:12px;color:var(--text-light);margin-top:6px;">點擊上方「新增預訂」開始</div>
       </div>
+    </div>
+  </div>
+
+  <!-- ========== 分潤視圖 ========== -->
+  <div class="view" id="commission-view">
+    <div class="card">
+      <div class="card-header"><h2>💸 分潤明細（依代理）</h2></div>
+      <div class="kpi-grid" id="commissionKPI"></div>
+    </div>
+    <div class="card" id="commissionTableCard">
+      <div class="card-header"><h2>📋 分潤總表</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>代理</th><th>訂單數</th><th>總利潤(TWD)</th><th>Alen分潤</th><th>大飛分潤</th><th>三交分潤</th></tr></thead>
+          <tbody id="commissionTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card" id="commissionPersonCard">
+      <div class="card-header"><h2>👤 個人分潤彙總</h2></div>
+      <div class="kpi-grid" id="commissionPersonKPI"></div>
     </div>
   </div>
 
@@ -318,6 +339,9 @@ tr:active { background: #fafbfc; }
   </button>
   <button class="nav-item" data-view="settings" onclick="switchView('settings')">
     <span class="nav-icon">⚙️</span>設定
+  </button>
+  <button class="nav-item" data-view="commission" onclick="switchView('commission')">
+    <span class="nav-icon">💸</span>分潤
   </button>
 </nav>
 
@@ -507,6 +531,7 @@ function switchView(view) {
   if (view === 'dashboard') renderDashboard();
   if (view === 'bookings') renderBookings();
   if (view === 'settings') renderSettings();
+  if (view === 'commission') renderCommission();
 }
 
 // ==================== Modal ====================
@@ -553,6 +578,13 @@ function openAddModal() {
       <div class="form-group" style="display:flex;align-items:center;justify-content:center;padding-top:20px;"><span style="font-size:18px;">↔</span></div>
       <div class="form-group"><label class="form-label">售價 TWD</label><input type="number" class="form-input" id="mPriceTWD" step="0.01" placeholder="0" onchange="onPriceTWDChange()"></div>
     </div>
+    <div class="form-row-3">
+      <div class="form-group"><label class="form-label">預收款 TWD</label><input type="number" class="form-input" id="mDeposit" step="0.01" placeholder="0" onchange="calcAll()"></div>
+      <div class="form-group"><label class="form-label">未收款 TWD <span class="auto-badge">自動</span></label><input type="number" class="form-input" id="mUnpaid" readonly style="background:#f9fafb;"></div>
+      <div class="form-group"><label class="form-label">預收人員</label>
+        <select class="form-select" id="mCollector"><option value="">－</option><option value="大飛">大飛</option><option value="Alen">Alen</option><option value="三交">三交</option></select>
+      </div>
+    </div>
     <div class="form-group"><label class="form-label">利潤 TWD <span class="auto-badge">=售價TWD−成本TWD</span></label>
       <input class="form-input" id="mProfit" readonly style="background:#f9fafb;">
     </div>
@@ -598,6 +630,13 @@ function openEditModal(booking) {
       <div class="form-group"><label class="form-label">售價 HKD</label><input type="number" class="form-input" id="mPriceHKD" step="0.01" value="${booking.priceHKD||''}" placeholder="0" onchange="onPriceHKDChange()"></div>
       <div class="form-group" style="display:flex;align-items:center;justify-content:center;padding-top:20px;"><span style="font-size:18px;">↔</span></div>
       <div class="form-group"><label class="form-label">售價 TWD</label><input type="number" class="form-input" id="mPriceTWD" step="0.01" value="${booking.price}" placeholder="0" onchange="onPriceTWDChange()"></div>
+    </div>
+    <div class="form-row-3">
+      <div class="form-group"><label class="form-label">預收款 TWD</label><input type="number" class="form-input" id="mDeposit" step="0.01" value="${booking.deposit||''}" placeholder="0" onchange="calcAll()"></div>
+      <div class="form-group"><label class="form-label">未收款 TWD <span class="auto-badge">自動</span></label><input type="number" class="form-input" id="mUnpaid" readonly style="background:#f9fafb;"></div>
+      <div class="form-group"><label class="form-label">預收人員</label>
+        <select class="form-select" id="mCollector"><option value="">－</option>${['大飛','Alen','三交'].map(n=>`<option value="${n}" ${n===booking.depositCollector?'selected':''}>${n}</option>`).join('')}</select>
+      </div>
     </div>
     <div class="form-group"><label class="form-label">利潤 TWD <span class="auto-badge">=售價TWD−成本TWD</span></label>
       <input class="form-input" id="mProfit" value="${Math.round(booking.profit)}" readonly style="background:#f9fafb;">
@@ -691,6 +730,11 @@ function calcAll() {
   const elP = document.getElementById('mProfit');
   if (elP) elP.value = profit;
   if (elP) { elP.style.color = profit>=0?'var(--success)':'var(--danger)'; }
+  // 未收款 = 售價TWD − 預收款
+  const deposit = parseFloat(document.getElementById('mDeposit')?.value) || 0;
+  const unpaid = priceTWD - deposit;
+  const elUP = document.getElementById('mUnpaid');
+  if (elUP) elUP.value = Math.round(unpaid);
 }
 
 function onPriceHKDChange() {
@@ -741,6 +785,7 @@ function saveBooking() {
     checkIn, checkOut, nights,
     hotel, roomType: document.getElementById('mRoomType').value,
     agent, cost: costHKD, costTWD, rate, price: priceTWD, priceHKD,
+    deposit: parseFloat(document.getElementById('mDeposit').value)||0, depositCollector: document.getElementById('mCollector').value,
     profit,
     createdAt: editingId ? undefined : new Date().toISOString()
   };
@@ -822,7 +867,8 @@ function renderBookings() {
           <td>${(b.costTWD||0).toLocaleString()}</td>
           <td>${b.rate}</td>
           <td>${(b.priceHKD||0).toLocaleString()}</td>
-          <td>${b.price.toLocaleString()}</td>
+          <td>${Math.round(b.price).toLocaleString()}</td>
+          <td>${Math.round(b.deposit||0).toLocaleString()}</td>
           <td class="${profitClass}">${profitSign}${Math.round(b.profit).toLocaleString()}</td>
           <td>
             <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openEditModalById('${b.id}')">✏️</button>
@@ -1148,6 +1194,52 @@ function clearFilters() {
 function renderAll() {
   renderBookings();
   renderDashboard();
+}
+
+// ==================== 分潤 ====================
+function getCommissionRates(agent) {
+  if (agent === '三交') return {Alen:35, 大飛:35, 三交:30};
+  if (agent === '大飛') return {Alen:50, 大飛:50};
+  return {};
+}
+function renderCommission() {
+  const bookings = getBookings();
+  // 依代理統計
+  const agentStats = {};
+  bookings.forEach(b => {
+    const a = b.agent || '其他';
+    if (!agentStats[a]) agentStats[a] = { count:0, profit:0 };
+    agentStats[a].count++;
+    agentStats[a].profit += b.profit || 0;
+  });
+
+  // 分潤計算
+  let totalAlen=0, totalFei=0, totalSan=0, totalP=0, totalC=0;
+  const tableHtml = Object.entries(agentStats).map(([a,s]) => {
+    const rates = getCommissionRates(a);
+    const alen = Math.round(s.profit * (rates.Alen||0)/100);
+    const fei = Math.round(s.profit * (rates['大飛']||0)/100);
+    const san = Math.round(s.profit * (rates['三交']||0)/100);
+    totalAlen += alen; totalFei += fei; totalSan += san;
+    totalP += s.profit; totalC += s.count;
+    const rateStr = Object.entries(rates).map(([k,v])=>k+v+'%').join('/') || '—';
+    return `<tr><td><strong>${a}</strong></td><td>${s.count}</td><td>${Math.round(s.profit).toLocaleString()}</td><td>${alen.toLocaleString()}</td><td>${fei.toLocaleString()}</td><td>${san.toLocaleString()}</td></tr>`;
+  }).join('');
+
+  document.getElementById('commissionTableBody').innerHTML = tableHtml || '<tr><td colspan="6" class="empty-state">尚無預訂記錄</td></tr>';
+
+  // KPI
+  document.getElementById('commissionKPI').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">📋 訂單數</div><div class="kpi-value">${totalC}</div></div>
+    <div class="kpi-card"><div class="kpi-label">💰 總利潤</div><div class="kpi-value profit">${totalP.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
+    <div class="kpi-card"><div class="kpi-label">🔄 已分潤</div><div class="kpi-value profit">${(totalAlen+totalFei+totalSan).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
+    <div class="kpi-card"><div class="kpi-label">📊 未分</div><div class="kpi-value">${(totalP-totalAlen-totalFei-totalSan).toLocaleString()}</div><div class="kpi-sub">TWD（無分潤代理）</div></div>`;
+
+  document.getElementById('commissionPersonKPI').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">🧑 Alen</div><div class="kpi-value profit">${totalAlen.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
+    <div class="kpi-card"><div class="kpi-label">🧑 大飛</div><div class="kpi-value profit">${totalFei.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
+    <div class="kpi-card"><div class="kpi-label">🧑 三交</div><div class="kpi-value profit">${totalSan.toLocaleString()}</div><div class="kpi-sub">TWD</div></div>
+    <div class="kpi-card"><div class="kpi-label">📈 合計</div><div class="kpi-value profit">${(totalAlen+totalFei+totalSan).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
 }
 
 // ==================== 初始化 ====================
