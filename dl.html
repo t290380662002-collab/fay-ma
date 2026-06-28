@@ -677,6 +677,11 @@ function onHotelChange() {
   if (hint) {
     hint.textContent = HOTEL_RATES[hotel] ? '=MOP×匯率' : '=HKD×匯率';
   }
+  // 探險預設預收 Alen（其餘預設大飛）
+  const mCollector = document.getElementById('mCollector');
+  if (mCollector && hotel === '探險') {
+    mCollector.value = 'Alen';
+  }
   if (rooms.length === 0) {
     mRoomType.innerHTML = '<option value="">（無預設房型）</option>';
     return;
