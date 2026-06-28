@@ -240,6 +240,9 @@ tr:active { background: #fafbfc; }
 
   <!-- ========== 分潤視圖 ========== -->
   <div class="view" id="commission-view">
+    <div style="display:flex;gap:10px;margin-bottom:14px;">
+      <button class="btn btn-primary btn-sm" onclick="renderCommission()">🔄 重新整理分潤</button>
+    </div>
     <div class="card">
       <div class="card-header"><h2>💸 分潤明細（依代理）</h2></div>
       <div class="kpi-grid" id="commissionKPI"></div>
@@ -348,7 +351,7 @@ tr:active { background: #fafbfc; }
 <script>
 // ==================== 數據模型 ====================
 const HOTELS = ['名匯','御園','倫敦人','威尼斯人','巴黎人','頤居','摩珀斯','巨星匯','映星匯','明星匯','君悅嘉賓軒','君悅'];
-const DEFAULT_AGENTS = ['直客','攜程','美團','飛豬','Booking','Agoda','Klook','KKday'];
+const DEFAULT_AGENTS = ['直客','攜程','美團','飛豬','Booking','Agoda','Klook','KKday','三交','大飛'];
 const STORAGE_KEY = 'macau_hotel_bookings';
 const SETTINGS_KEY = 'macau_hotel_settings';
 const TG_KEY = 'macau_hotel_telegram';
@@ -762,7 +765,7 @@ function saveBooking() {
   const checkIn = document.getElementById('mCheckIn').value;
   const checkOut = document.getElementById('mCheckOut').value;
   const hotel = document.getElementById('mHotel').value;
-  const agent = document.getElementById('mAgent').value;
+  const agent = document.getElementById('mAgent').value.trim();
 
   if (!checkIn) { showToast('請選擇入住日期', 'error'); return; }
   if (!checkOut) { showToast('請輸入晚數以自動計算退房日期', 'error'); return; }
@@ -1199,8 +1202,9 @@ function renderAll() {
 
 // ==================== 分潤 ====================
 function getCommissionRates(agent) {
-  if (agent === '三交') return {Alen:35, 大飛:35, 三交:30};
-  if (agent === '大飛' || agent === '飛') return {Alen:50, 大飛:50};
+  const a = (agent||'').trim();
+  if (a === '三交') return {Alen:35, 大飛:35, 三交:30};
+  if (a === '大飛' || a === '飛') return {Alen:50, 大飛:50};
   return {};
 }
 function renderCommission() {
@@ -1217,21 +1221,24 @@ function renderCommission() {
   // 代理分潤統計
   const agentStats = {};
   bookings.forEach(b => {
-    const a = b.agent || '其他';
+    const a = (b.agent||'').trim() || '其他';
     if (!agentStats[a]) agentStats[a] = { count:0, profit:0 };
     agentStats[a].count++;
     agentStats[a].profit += b.profit || 0;
   });
 
+  console.log('分潤: agentStats =', JSON.stringify(agentStats));
+
   let totalAlen=0, totalFei=0, totalSan=0, totalP=0;
-  const tableHtml = Object.entries(agentStats).map(([a,s]) => {
+  const tableHtml = Object.entries(agentStats).map(([a,stat]) => {
     const rates = getCommissionRates(a);
-    const alen = Math.round(s.profit * (rates.Alen||0)/100);
-    const fei = Math.round(s.profit * (rates['大飛']||0)/100);
-    const san = Math.round(s.profit * (rates['三交']||0)/100);
+    const alen = Math.round(stat.profit * (rates.Alen||0)/100);
+    const fei = Math.round(stat.profit * (rates['大飛']||0)/100);
+    const san = Math.round(stat.profit * (rates['三交']||0)/100);
+    console.log(`分潤: agent=${a}, profit=${stat.profit}, rates=`, rates, `=> Alen=${alen}, 大飛=${fei}, 三交=${san}`);
     totalAlen += alen; totalFei += fei; totalSan += san;
-    totalP += s.profit;
-    return `<tr><td><strong>${a}</strong></td><td>${s.count}</td><td>${Math.round(s.profit).toLocaleString()}</td><td>${alen.toLocaleString()}</td><td>${fei.toLocaleString()}</td><td>${san.toLocaleString()}</td></tr>`;
+    totalP += stat.profit;
+    return `<tr><td><strong>${a}</strong></td><td>${stat.count}</td><td>${Math.round(stat.profit).toLocaleString()}</td><td>${alen.toLocaleString()}</td><td>${fei.toLocaleString()}</td><td>${san.toLocaleString()}</td></tr>`;
   }).join('');
 
   document.getElementById('commissionTableBody').innerHTML = tableHtml || '<tr><td colspan="6" class="empty-state">尚無預訂記錄</td></tr>';
