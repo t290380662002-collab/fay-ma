@@ -251,7 +251,7 @@ tr:active { background: #fafbfc; }
       <div class="card-header"><h2>📋 分潤總表</h2></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>代理</th><th>訂單數</th><th>總利潤(TWD)</th><th>Alen分潤</th><th>大飛分潤</th><th>三交分潤</th></tr></thead>
+          <thead><tr><th>代理</th><th>訂單數</th><th>總利潤(TWD)</th><th>代收金額</th><th>Alen分潤</th><th>大飛分潤</th><th>三交分潤</th></tr></thead>
           <tbody id="commissionTableBody"></tbody>
         </table>
       </div>
@@ -1223,9 +1223,10 @@ function renderCommission() {
   const agentStats = {};
   bookings.forEach(b => {
     const a = (b.agent||'').trim() || '其他';
-    if (!agentStats[a]) agentStats[a] = { count:0, profit:0 };
+    if (!agentStats[a]) agentStats[a] = { count:0, profit:0, deposit:0 };
     agentStats[a].count++;
     agentStats[a].profit += b.profit || 0;
+    agentStats[a].deposit += b.deposit || 0;
   });
 
   let totalAlen=0, totalFei=0, totalSan=0, totalP=0;
@@ -1236,10 +1237,10 @@ function renderCommission() {
     const san = Math.round(stat.profit * (rates['三交']||0)/100);
     totalAlen += alen; totalFei += fei; totalSan += san;
     totalP += stat.profit;
-    return `<tr><td><strong>${a}</strong></td><td>${stat.count}</td><td>${Math.round(stat.profit).toLocaleString()}</td><td>${alen.toLocaleString()}</td><td>${fei.toLocaleString()}</td><td>${san.toLocaleString()}</td></tr>`;
+    return `<tr><td><strong>${a}</strong></td><td>${stat.count}</td><td>${Math.round(stat.profit).toLocaleString()}</td><td>${Math.round(stat.deposit).toLocaleString()}</td><td>${alen.toLocaleString()}</td><td>${fei.toLocaleString()}</td><td>${san.toLocaleString()}</td></tr>`;
   }).join('');
 
-  document.getElementById('commissionTableBody').innerHTML = tableHtml || '<tr><td colspan="6" class="empty-state">尚無預訂記錄</td></tr>';
+  document.getElementById('commissionTableBody').innerHTML = tableHtml || '<tr><td colspan="7" class="empty-state">尚無預訂記錄</td></tr>';
 
   // 收款概覽 KPI
   document.getElementById('commissionKPI').innerHTML = `
