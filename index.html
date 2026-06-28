@@ -251,7 +251,7 @@ tr:active { background: #fafbfc; }
       <div class="card-header"><h2>📋 分潤總表</h2></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>代理</th><th>訂單數</th><th>總利潤(TWD)</th><th>預收金額</th><th>Alen分潤</th><th>大飛分潤</th><th>三交分潤</th></tr></thead>
+          <thead><tr><th>代理</th><th style="text-align:center;">訂單數</th><th style="text-align:right;">總利潤(TWD)</th><th style="text-align:right;">預收金額</th><th style="text-align:right;">Alen分潤</th><th style="text-align:right;">大飛分潤</th><th style="text-align:right;">三交分潤</th></tr></thead>
           <tbody id="commissionTableBody"></tbody>
         </table>
       </div>
@@ -1240,12 +1240,12 @@ function renderCommission() {
     // 預收金額顯示（依收款人分列）
     const depositParts = Object.entries(stat.depositByCollector)
       .filter(([_,amt]) => amt > 0)
-      .map(([c,amt]) => `${c} ${Math.round(amt).toLocaleString()}`)
-      .join('<br>');
-    const depositDisplay = depositParts || '0';
+      .map(([c,amt]) => `<span style="display:inline-block;background:var(--bg);padding:3px 8px;border-radius:12px;margin:2px 0;font-size:12px;"><strong style="color:var(--primary);">${c}</strong> <span style="color:var(--text);">${Math.round(amt).toLocaleString()}</span></span>`)
+      .join(' ');
+    const depositDisplay = depositParts || '<span style="color:var(--text-light);">—</span>';
     totalAlen += alen; totalFei += fei; totalSan += san;
     totalP += stat.profit;
-    return `<tr><td><strong>${a}</strong></td><td>${stat.count}</td><td>${Math.round(stat.profit).toLocaleString()}</td><td>${depositDisplay}</td><td>${alen.toLocaleString()}</td><td>${fei.toLocaleString()}</td><td>${san.toLocaleString()}</td></tr>`;
+    return `<tr><td><strong>${a}</strong></td><td style="text-align:center;">${stat.count}</td><td style="text-align:right;">${Math.round(stat.profit).toLocaleString()}</td><td style="text-align:right;">${depositDisplay}</td><td style="text-align:right;">${alen.toLocaleString()}</td><td style="text-align:right;">${fei.toLocaleString()}</td><td style="text-align:right;">${san.toLocaleString()}</td></tr>`;
   }).join('');
 
   document.getElementById('commissionTableBody').innerHTML = tableHtml || '<tr><td colspan="7" class="empty-state">尚無預訂記錄</td></tr>';
