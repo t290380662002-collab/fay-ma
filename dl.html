@@ -244,14 +244,14 @@ tr:active { background: #fafbfc; }
       <button class="btn btn-primary btn-sm" onclick="renderCommission()">🔄 重新整理分潤</button>
     </div>
     <div class="card">
-      <div class="card-header"><h2>💸 分潤明細（依代理）</h2></div>
+      <div class="card-header"><h2>💸 分潤明細（依代理）</h2><span class="count" style="font-size:12px;" id="commissionCount"></span></div>
       <div class="kpi-grid" id="commissionKPI"></div>
     </div>
     <div class="card" id="commissionTableCard">
-      <div class="card-header"><h2>📋 分潤總表</h2></div>
+      <div class="card-header"><h2>📋 分潤總表</h2><span class="count" id="tableRowCount"></span></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>代理</th><th style="text-align:center;">訂單數</th><th style="text-align:right;">支出房費</th><th style="text-align:right;">總利潤(TWD)</th><th style="text-align:right;">預收金額</th><th style="text-align:right;">Alen分潤</th><th style="text-align:right;">大飛分潤</th><th style="text-align:right;">三交分潤</th></tr></thead>
+          <thead><tr><th>代理</th><th>酒店</th><th>入住</th><th style="text-align:center;">人數</th><th style="text-align:right;">利潤(TWD)</th><th style="text-align:right;">預收</th><th style="text-align:right;">Alen</th><th style="text-align:right;">大飛</th><th style="text-align:right;">三交</th></tr></thead>
           <tbody id="commissionTableBody"></tbody>
         </table>
       </div>
@@ -1323,50 +1323,35 @@ function renderCommission() {
   const collectedBookings = bookings.filter(b => (b.deposit||0) > 0);
   const uncollectedBookings = bookings.filter(b => !(b.deposit||0));
 
-  // 代理分潤統計
-  const agentStats = {};
-  bookings.forEach(b => {
-    const a = (b.agent||'').trim() || '其他';
-    if (!agentStats[a]) agentStats[a] = { count:0, profit:0, deposit:0, costTWD:0, depositByCollector:{}, alenTotal:0, feiTotal:0, sanTotal:0 };
-    agentStats[a].count++;
-    agentStats[a].profit += b.profit || 0;
-    agentStats[a].deposit += b.deposit || 0;
-    agentStats[a].costTWD += (b.costTWD || b.cost*b.rate || 0);
-    // 依預訂逐筆計算分潤（支援同代理不同酒店不同比例）
-    const rates = getCommissionRates(b.agent, b.hotel);
-    agentStats[a].alenTotal += Math.round((b.profit||0) * (rates.Alen||0)/100);
-    agentStats[a].feiTotal += Math.round((b.profit||0) * (rates['大飛']||0)/100);
-    agentStats[a].sanTotal += Math.round((b.profit||0) * (rates['三交']||0)/100);
-    const collector = (b.depositCollector||'').trim() || '—';
-    agentStats[a].depositByCollector[collector] = (agentStats[a].depositByCollector[collector]||0) + (b.deposit||0);
-  });
-
+  // 逐筆顯示分潤明細（不疊加）
   let totalAlen=0, totalFei=0, totalSan=0, totalP=0;
-  const tableHtml = Object.entries(agentStats).map(([a,stat]) => {
-    const alen = stat.alenTotal;
-    const fei = stat.feiTotal;
-    const san = stat.sanTotal;
-    // 預收金額顯示（依收款人分列）
-    const depositParts = Object.entries(stat.depositByCollector)
-      .filter(([_,amt]) => amt > 0)
-      .map(([c,amt]) => `<span style="display:inline-block;background:var(--bg);padding:3px 8px;border-radius:12px;margin:2px 0;font-size:12px;"><strong style="color:var(--primary);">${c}</strong> <span style="color:var(--text);">${Math.round(amt).toLocaleString()}</span></span>`)
-      .join(' ');
-    const depositDisplay = depositParts || '<span style="color:var(--text-light);">—</span>';
-
-    // 支出房費顯示（成本TWD + 已付/未付切換按鈕）
-    const cost = Math.round(stat.costTWD);
-    const expensePaid = s.agentExpensePaid[a] === true;
-    const paidLabel = expensePaid ? '✅ 已付' : '❌ 未付';
-    const paidColor = expensePaid ? 'var(--success)' : 'var(--danger)';
-    const costDisplay = `<div style="font-weight:700;">${cost.toLocaleString()}</div>
-      <button class="btn btn-xs" style="margin-top:4px;font-size:11px;background:${paidColor};color:#fff;border:none;padding:4px 10px;border-radius:12px;cursor:pointer;" onclick="event.stopPropagation();toggleAgentExpense('${a.replace(/'/g,"\\'")}')">${paidLabel}</button>
-      <button class="btn btn-xs btn-ghost" style="margin-top:4px;font-size:10px;" onclick="event.stopPropagation();showAgentPaidDetail('${a.replace(/'/g,"\\'")}')">📋</button>`;
+  const tableHtml = bookings.map(b => {
+    const a = (b.agent||'').trim() || '其他';
+    const rates = getCommissionRates(b.agent, b.hotel);
+    const alen = Math.round((b.profit||0) * (rates.Alen||0)/100);
+    const fei = Math.round((b.profit||0) * (rates['大飛']||0)/100);
+    const san = Math.round((b.profit||0) * (rates['三交']||0)/100);
     totalAlen += alen; totalFei += fei; totalSan += san;
-    totalP += stat.profit;
-    return `<tr><td><strong>${a}</strong></td><td style="text-align:center;">${stat.count}</td><td style="text-align:right;">${costDisplay}</td><td style="text-align:right;">${Math.round(stat.profit).toLocaleString()}</td><td style="text-align:right;">${depositDisplay}</td><td style="text-align:right;">${alen.toLocaleString()}</td><td style="text-align:right;">${fei.toLocaleString()}</td><td style="text-align:right;">${san.toLocaleString()}</td></tr>`;
+    totalP += b.profit || 0;
+    const collector = (b.depositCollector||'').trim() || '—';
+    const depositShow = (b.deposit||0) > 0 ? `${collector} ${Math.round(b.deposit||0).toLocaleString()}` : '—';
+    const ratioShow = Object.entries(rates).map(([k,v])=>`${k}${v}%`).join('/') || '—';
+    return `<tr>
+      <td><strong>${a}</strong></td>
+      <td>${b.hotel||'—'}</td>
+      <td style="font-size:12px;">${b.checkIn||'—'}<br><span style="color:var(--text-light);">${b.nights||0}晚</span></td>
+      <td style="text-align:center;">${b.nights||'—'}</td>
+      <td style="text-align:right;">${Math.round(b.profit||0).toLocaleString()}</td>
+      <td style="text-align:right;font-size:12px;">${depositShow}</td>
+      <td style="text-align:right;">${alen.toLocaleString()}</td>
+      <td style="text-align:right;">${fei.toLocaleString()}</td>
+      <td style="text-align:right;">${san.toLocaleString()}</td>
+    </tr>`;
   }).join('');
 
-  document.getElementById('commissionTableBody').innerHTML = tableHtml || '<tr><td colspan="8" class="empty-state">尚無預訂記錄</td></tr>';
+  document.getElementById('commissionTableBody').innerHTML = tableHtml || '<tr><td colspan="9" class="empty-state">尚無預訂記錄</td></tr>';
+  document.getElementById('tableRowCount').textContent = bookings.length ? `${bookings.length}筆` : '';
+  document.getElementById('commissionCount').textContent = bookings.length ? `${bookings.length}筆` : '';
 
   // 收款概覽 KPI
   document.getElementById('commissionKPI').innerHTML = `
@@ -1384,9 +1369,9 @@ function renderCommission() {
   const unpaidSan = totalSan - paidSan;
 
   document.getElementById('commissionPersonKPI').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">🧑 Alen</div><div class="kpi-value profit">${totalAlen.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('Alen')">💰 已給 ${paidAlen.toLocaleString()}</span>　<span style="color:${unpaidAlen>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidAlen.toLocaleString()}</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">🧑 大飛</div><div class="kpi-value profit">${totalFei.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('大飛')">💰 已給 ${paidFei.toLocaleString()}</span>　<span style="color:${unpaidFei>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidFei.toLocaleString()}</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">🧑 三交</div><div class="kpi-value profit">${totalSan.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('三交')">💰 已給 ${paidSan.toLocaleString()}</span>　<span style="color:${unpaidSan>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidSan.toLocaleString()}</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">🧑 Alen</div><div class="kpi-value profit">${totalAlen.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('Alen')">💰 已給 ${paidAlen.toLocaleString()}</span>　<span style="color:${unpaidAlen>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidAlen.toLocaleString()}</span></div><button class="btn btn-xs" style="margin-top:4px;font-size:10px;background:${s.agentExpensePaid['Alen']?'var(--success)':'var(--danger)'};color:#fff;border:none;border-radius:10px;padding:3px 8px;cursor:pointer;" onclick="event.stopPropagation();toggleAgentExpense('Alen')">${s.agentExpensePaid['Alen']?'✅ 已付公司':'❌ 未付公司'}</button></div>
+    <div class="kpi-card"><div class="kpi-label">🧑 大飛</div><div class="kpi-value profit">${totalFei.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('大飛')">💰 已給 ${paidFei.toLocaleString()}</span>　<span style="color:${unpaidFei>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidFei.toLocaleString()}</span></div><button class="btn btn-xs" style="margin-top:4px;font-size:10px;background:${s.agentExpensePaid['大飛']?'var(--success)':'var(--danger)'};color:#fff;border:none;border-radius:10px;padding:3px 8px;cursor:pointer;" onclick="event.stopPropagation();toggleAgentExpense('大飛')">${s.agentExpensePaid['大飛']?'✅ 已付公司':'❌ 未付公司'}</button></div>
+    <div class="kpi-card"><div class="kpi-label">🧑 三交</div><div class="kpi-value profit">${totalSan.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('三交')">💰 已給 ${paidSan.toLocaleString()}</span>　<span style="color:${unpaidSan>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidSan.toLocaleString()}</span></div><button class="btn btn-xs" style="margin-top:4px;font-size:10px;background:${s.agentExpensePaid['三交']?'var(--success)':'var(--danger)'};color:#fff;border:none;border-radius:10px;padding:3px 8px;cursor:pointer;" onclick="event.stopPropagation();toggleAgentExpense('三交')">${s.agentExpensePaid['三交']?'✅ 已付公司':'❌ 未付公司'}</button></div>
     <div class="kpi-card"><div class="kpi-label">📈 合計分潤</div><div class="kpi-value profit">${(totalAlen+totalFei+totalSan).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
 }
 
