@@ -251,7 +251,7 @@ tr:active { background: #fafbfc; }
       <div class="card-header"><h2>📋 分潤總表</h2></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>代理</th><th>訂單數</th><th>總利潤(TWD)</th><th>代收金額</th><th>Alen分潤</th><th>大飛分潤</th><th>三交分潤</th></tr></thead>
+          <thead><tr><th>代理</th><th>訂單數</th><th>總利潤(TWD)</th><th>預收金額</th><th>Alen分潤</th><th>大飛分潤</th><th>三交分潤</th></tr></thead>
           <tbody id="commissionTableBody"></tbody>
         </table>
       </div>
@@ -1223,10 +1223,12 @@ function renderCommission() {
   const agentStats = {};
   bookings.forEach(b => {
     const a = (b.agent||'').trim() || '其他';
-    if (!agentStats[a]) agentStats[a] = { count:0, profit:0, deposit:0 };
+    if (!agentStats[a]) agentStats[a] = { count:0, profit:0, deposit:0, depositByCollector:{} };
     agentStats[a].count++;
     agentStats[a].profit += b.profit || 0;
     agentStats[a].deposit += b.deposit || 0;
+    const collector = (b.depositCollector||'').trim() || '—';
+    agentStats[a].depositByCollector[collector] = (agentStats[a].depositByCollector[collector]||0) + (b.deposit||0);
   });
 
   let totalAlen=0, totalFei=0, totalSan=0, totalP=0;
@@ -1235,9 +1237,15 @@ function renderCommission() {
     const alen = Math.round(stat.profit * (rates.Alen||0)/100);
     const fei = Math.round(stat.profit * (rates['大飛']||0)/100);
     const san = Math.round(stat.profit * (rates['三交']||0)/100);
+    // 預收金額顯示（依收款人分列）
+    const depositParts = Object.entries(stat.depositByCollector)
+      .filter(([_,amt]) => amt > 0)
+      .map(([c,amt]) => `${c} ${Math.round(amt).toLocaleString()}`)
+      .join('<br>');
+    const depositDisplay = depositParts || '0';
     totalAlen += alen; totalFei += fei; totalSan += san;
     totalP += stat.profit;
-    return `<tr><td><strong>${a}</strong></td><td>${stat.count}</td><td>${Math.round(stat.profit).toLocaleString()}</td><td>${Math.round(stat.deposit).toLocaleString()}</td><td>${alen.toLocaleString()}</td><td>${fei.toLocaleString()}</td><td>${san.toLocaleString()}</td></tr>`;
+    return `<tr><td><strong>${a}</strong></td><td>${stat.count}</td><td>${Math.round(stat.profit).toLocaleString()}</td><td>${depositDisplay}</td><td>${alen.toLocaleString()}</td><td>${fei.toLocaleString()}</td><td>${san.toLocaleString()}</td></tr>`;
   }).join('');
 
   document.getElementById('commissionTableBody').innerHTML = tableHtml || '<tr><td colspan="7" class="empty-state">尚無預訂記錄</td></tr>';
