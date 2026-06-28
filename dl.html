@@ -470,9 +470,9 @@ function saveBookings(data) {
 function getSettings() {
   try {
     const d = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    return { defaultRate: d.defaultRate || 4.1, agents: d.agents || [...DEFAULT_AGENTS], customRoomFee: d.customRoomFee, customPaid: d.customPaid, customUnpaid: d.customUnpaid, paidAlen: d.paidAlen, paidFei: d.paidFei, paidSan: d.paidSan };
+    return { defaultRate: d.defaultRate || 4.1, agents: d.agents || [...DEFAULT_AGENTS], customRoomFee: d.customRoomFee, customPaid: d.customPaid, customUnpaid: d.customUnpaid, paidAlen: d.paidAlen, paidFei: d.paidFei, paidSan: d.paidSan, agentExpensePaid: d.agentExpensePaid || {} };
   } catch(e) {
-    return { defaultRate: 4.1, agents: [...DEFAULT_AGENTS], customRoomFee: null, customPaid: null, customUnpaid: null, paidAlen: null, paidFei: null, paidSan: null };
+    return { defaultRate: 4.1, agents: [...DEFAULT_AGENTS], customRoomFee: null, customPaid: null, customUnpaid: null, paidAlen: null, paidFei: null, paidSan: null, agentExpensePaid: {} };
   }
 }
 function saveSettingsObj(obj) {
@@ -1245,17 +1245,14 @@ function renderCommission() {
       .join(' ');
     const depositDisplay = depositParts || '<span style="color:var(--text-light);">—</span>';
 
-    // 支出房費顯示（成本TWD + 已付/未付）
+    // 支出房費顯示（成本TWD + 已付/未付切換按鈕）
     const cost = Math.round(stat.costTWD);
-    const paid = Math.round(stat.deposit);
-    const unpaidCost = cost - paid;
+    const expensePaid = s.agentExpensePaid[a] === true;
+    const paidLabel = expensePaid ? '✅ 已付' : '❌ 未付';
+    const paidColor = expensePaid ? 'var(--success)' : 'var(--danger)';
     const costDisplay = `<div style="font-weight:700;">${cost.toLocaleString()}</div>
-      <div style="font-size:11px;margin-top:2px;">
-        <span style="color:var(--success);">已付 ${paid.toLocaleString()}</span>
-        <span style="margin:0 4px;color:var(--border);">|</span>
-        <span style="color:${unpaidCost>0?'var(--danger)':'var(--text-light)'};">未付 ${unpaidCost.toLocaleString()}</span>
-      </div>
-      <button class="btn btn-xs btn-ghost" style="margin-top:4px;font-size:10px;" onclick="event.stopPropagation();showAgentPaidDetail('${a}')">📋 明細</button>`;
+      <button class="btn btn-xs" style="margin-top:4px;font-size:11px;background:${paidColor};color:#fff;border:none;padding:4px 10px;border-radius:12px;cursor:pointer;" onclick="event.stopPropagation();toggleAgentExpense('${a.replace(/'/g,"\\'")}')">${paidLabel}</button>
+      <button class="btn btn-xs btn-ghost" style="margin-top:4px;font-size:10px;" onclick="event.stopPropagation();showAgentPaidDetail('${a.replace(/'/g,"\\'")}')">📋</button>`;
     totalAlen += alen; totalFei += fei; totalSan += san;
     totalP += stat.profit;
     return `<tr><td><strong>${a}</strong></td><td style="text-align:center;">${stat.count}</td><td style="text-align:right;">${costDisplay}</td><td style="text-align:right;">${Math.round(stat.profit).toLocaleString()}</td><td style="text-align:right;">${depositDisplay}</td><td style="text-align:right;">${alen.toLocaleString()}</td><td style="text-align:right;">${fei.toLocaleString()}</td><td style="text-align:right;">${san.toLocaleString()}</td></tr>`;
@@ -1283,6 +1280,14 @@ function renderCommission() {
     <div class="kpi-card"><div class="kpi-label">🧑 大飛</div><div class="kpi-value profit">${totalFei.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('大飛')">💰 已給 ${paidFei.toLocaleString()}</span>　<span style="color:${unpaidFei>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidFei.toLocaleString()}</span></div></div>
     <div class="kpi-card"><div class="kpi-label">🧑 三交</div><div class="kpi-value profit">${totalSan.toLocaleString()}</div><div class="kpi-sub">分潤 TWD</div><div style="margin-top:6px;font-size:12px;color:var(--text-light);border-top:1px solid var(--border);padding-top:6px;"><span style="cursor:pointer;color:var(--success);font-weight:600;" onclick="editPaidTo('三交')">💰 已給 ${paidSan.toLocaleString()}</span>　<span style="color:${unpaidSan>0?'var(--danger)':'var(--text-light)'};font-weight:600;">📌 未給 ${unpaidSan.toLocaleString()}</span></div></div>
     <div class="kpi-card"><div class="kpi-label">📈 合計分潤</div><div class="kpi-value profit">${(totalAlen+totalFei+totalSan).toLocaleString()}</div><div class="kpi-sub">TWD</div></div>`;
+}
+
+function toggleAgentExpense(agent) {
+  const s = getSettings();
+  s.agentExpensePaid[agent] = !s.agentExpensePaid[agent];
+  saveSettingsObj(s);
+  renderCommission();
+  showToast(`${agent} 支出房費已標記為 ${s.agentExpensePaid[agent] ? '✅ 已付' : '❌ 未付'}`, 'success');
 }
 
 function showAgentPaidDetail(agent) {
